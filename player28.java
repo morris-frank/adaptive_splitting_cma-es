@@ -4,17 +4,17 @@ import org.vu.contest.ContestEvaluation;
 import java.util.Random;
 import java.util.Properties;
 
-public class player0 implements ContestSubmission
+public class player28 implements ContestSubmission
 {
 	Random rnd_;
 	ContestEvaluation evaluation_;
     private int evaluations_limit_;
-	
-	public player0()
+
+	public player28()
 	{
 		rnd_ = new Random();
 	}
-	
+
 	public void setSeed(long seed)
 	{
 		// Set seed of algortihms random process
@@ -25,7 +25,7 @@ public class player0 implements ContestSubmission
 	{
 		// Set evaluation problem used in the run
 		evaluation_ = evaluation;
-		
+
 		// Get evaluation properties
 		Properties props = evaluation.getProperties();
         // Get evaluation limit
@@ -43,11 +43,11 @@ public class player0 implements ContestSubmission
             // Do sth else
         }
     }
-    
+
 	public void run()
 	{
 		// Run your algorithm here
-        
+
         int evals = 0;
         // init population
         // calculate fitness
