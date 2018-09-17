@@ -3,12 +3,16 @@ import org.vu.contest.ContestEvaluation;
 
 import java.util.Random;
 import java.util.Properties;
+import java.util.Arrays;
 
 public class player28 implements ContestSubmission
 {
 	Random rnd_;
 	ContestEvaluation evaluation_;
     private int evaluations_limit_;
+    private static final double spaceBoundary = 5.0D;
+    private static final int nDim = 10;
+    private static final int nPop = 100;
 
 	public player28()
 	{
@@ -44,22 +48,46 @@ public class player28 implements ContestSubmission
         }
     }
 
-	public void run()
-	{
-		// Run your algorithm here
-
-        int evals = 0;
-        // init population
-        // calculate fitness
-        while(evals<evaluations_limit_){
-            // Select parents
-            // Apply crossover / mutation operators
-            double child[] = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
-            // Check fitness of unknown fuction
-            Double fitness = (double) evaluation_.evaluate(child);
-            evals++;
-            // Select survivors
+    public double[] generateRandomGenotype()
+    {
+        double[] genotype = new double[nDim];
+        for(int i = 0; i < genotype.length; i++) {
+            genotype[i] = -spaceBoundary + 2 * spaceBoundary * rnd_.nextDouble();
         }
 
+        return genotype;
+    }
+
+    public double[][] generateRandomPopulation()
+    {
+        double[][] population = new double[nPop][nDim];
+        for(int i = 0; i < population.length; i++){
+            population[i] = generateRandomGenotype();
+        }
+        return population;
+    }
+
+    public int evaluatePopulation(double[][] population, int evals)
+    {
+        for(double[] individuals : population){
+            Double fitness = (double) evaluation_.evaluate(individuals);
+            evals++;
+            if(evals == evaluations_limit_){
+                break;
+            }
+        }
+        return evals;
+    }
+
+	public void run()
+	{
+        int evals = 0;
+
+        double [][] population = generateRandomPopulation();
+
+        while(evals<evaluations_limit_){
+            evals = evaluatePopulation(population, evals);
+            population = generateRandomPopulation();
+        }
 	}
 }
