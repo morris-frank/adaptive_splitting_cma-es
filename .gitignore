@@ -1,2 +1,6 @@
 player28.class
-.vscode/
+.vscode/launch.json
+.venv/
+*ipynb
+.ipynb_checkpoints/
+.idea/
