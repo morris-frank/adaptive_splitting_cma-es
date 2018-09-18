@@ -10,9 +10,9 @@ public class player28 implements ContestSubmission
 	Random rnd_;
 	ContestEvaluation evaluation_;
     private int evaluations_limit_;
-    private static final double spaceBoundary = 5.0D;
-    private static final int nDim = 10;
-    private static final int nPop = 100;
+    protected static final double spaceBoundary = 5.0D;
+    protected static final int nDim = 10;
+    protected static final int nPop = 100;
 
 	public player28()
 	{
