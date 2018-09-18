@@ -1,8 +1,8 @@
-player28.class
 .vscode/launch.json
 .venv/
-*ipynb
-.ipynb_checkpoints/
+*ipynb*
 .idea/
 tmp/
 submission.jar
+player28*.class
+Makefile

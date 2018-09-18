@@ -1,6 +1,6 @@
 BDIR=$(CURDIR)
 
-LOCALURL=http://localhost/
+BCLASS=player28
 
 help:
 	@echo 'Makefile for the evolcomp assignment                                      '
@@ -11,10 +11,10 @@ help:
 	@echo '                                                                          '
 
 build:
-	javac -cp contest.jar player28.java
-	jar cmf MainClass.txt submission.jar player28.class
+	javac -cp contest.jar $(BCLASS).java
+	jar cmf MainClass.txt submission.jar $(BCLASS)*.class
 
 test:
-	java -jar testrun.jar -submission=player28 -evaluation=BentCigarFunction -seed=1
+	java -jar testrun.jar -submission=$(BCLASS) -evaluation=BentCigarFunction -seed=1
 
 .PHONY: help test build
