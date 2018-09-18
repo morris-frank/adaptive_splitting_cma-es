@@ -1,0 +1,1 @@
+Copy `Makefile.example` to `Makefile` and you can change the `BCLASS` variable to match your current base class.
