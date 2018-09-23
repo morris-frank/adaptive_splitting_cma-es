@@ -89,5 +89,80 @@ public class player28 implements ContestSubmission
             evals = evaluatePopulation(population, evals);
             population = generateRandomPopulation();
         }
-	}
+    }
+
+    public double[] zeros(int length)
+    {
+        return new double[length];
+    }
+
+    public double[][] zeros(int height, int width)
+    {
+        double[][] matrix = new double[height][width];
+        for(int h = 0; h < height; h++)
+            for(int w = 0; w < width; w++)
+                matrix[h][w] = 0.0D;
+        return matrix;
+
+    }
+
+    public double[] rand(int length, double boundary)
+    {
+        double[] vector = new double[length];
+        for(int i = 0; i < length; i++)
+            vector[i] = -boundary + 2 * boundary * rnd_.nextDouble();
+        return vector;
+    }
+
+    public double average(double[] vector)
+    {
+        double sum = 0;
+        for(int i = 0; i < vector.length; i++)
+            sum += vector[i];
+        return sum / (double)vector.length;
+    }
+
+    public double[] mean(double[][] matrix)
+    {
+        int width = matrix[0].length;
+        int height = matrix.length;
+        double[] mean = new double[width];
+        for(int w = 0; w < width; w++)
+            for(int h = 0; h < height; h++)
+                mean[w] += matrix[h][w];
+        for(int w = 0; w < width; w++)
+            mean[w] /= height;
+        return mean;
+    }
+
+    public double[][] covariance(double[][] matrix)
+    {
+        int width = matrix[0].length;
+        int height = matrix.length;
+        double[][] covariance = zeros(width, width);
+        double[] mean = mean(matrix);
+        for(int x = 0; x < width; x++)
+            for(int y = x; y < width; y++){
+                double c = 0;
+                for(int h = 0; h < height; h++)
+                    c +=  (matrix[h][x] - mean[x]) * (matrix[h][y] - mean[y]);
+                c /= height - 1;
+                covariance[x][y] = c;
+                covariance[y][x] = c;
+            }
+
+        return covariance;
+    }
+
+    public void print(double[] vector)
+    {
+        System.out.println(Arrays.toString(vector));
+    }
+
+    public void print(double[][] matrix)
+    {
+        for(int i = 0; i < matrix.length; i++){
+            print(matrix[i]);
+        }
+    }
 }
