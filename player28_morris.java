@@ -1,16 +1,13 @@
 import org.vu.contest.ContestSubmission;
 import org.vu.contest.ContestEvaluation;
 
-import java.util.Random;
-
-import javax.swing.plaf.synth.SynthMenuBarUI;
-
-import java.util.Properties;
+import java.lang.Object;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.ArrayList;
-import java.lang.Object;
+import java.util.Properties;
+import java.util.Random;
 
 public class player28_morris implements ContestSubmission
 {
@@ -20,14 +17,13 @@ public class player28_morris implements ContestSubmission
     protected static final double maxPos = 5.0D;
     protected static final int nDim = 10;
     protected static final int nInd = 100;
-    protected static final int nTribes = 8;
+    protected static final int nPopulations = 8;
     double birthrate = 1.0D;
     int evals;
 
     public class Individual implements Comparable<Individual>
     {
         public double[] position;
-        public double gradient;
         public double fitness;
         public int age;
 
@@ -36,7 +32,6 @@ public class player28_morris implements ContestSubmission
             position = new double[nDim];
             fitness = 0;
             age = 1;
-            gradient = 0.0D;
         }
 
         public double fitness()
@@ -56,16 +51,17 @@ public class player28_morris implements ContestSubmission
         }
     }
 
-    public class Tribe
+    public class Population
     {
         public int size;
-        public double birthrate;
         public List<Individual> individuals;
         public double[][] covariance;
+        public double[][] L_cov;
         public double[] mean;
         public int generation;
+        public double bump = 1.0D;
 
-        public Tribe()
+        public Population()
         {
             size = 0;
             generation = 1;
@@ -77,7 +73,7 @@ public class player28_morris implements ContestSubmission
         {
             for(int i = 0; i < n; i++){
                 Individual individual = new Individual();
-                individual.position = rand(nDim, maxPos);
+                individual.position = rand(nDim, 0.01);
                 individual.fitness();
                 individuals.add(individual);
             }
@@ -110,27 +106,27 @@ public class player28_morris implements ContestSubmission
 
         public void newYear()
         {
-            for(int i = 0; i < individuals.size(); i++)
-            individuals.get(i).age++;
-
-        }
-
-        public void nextGeneration()
-        {
             generation++;
-            System.out.println();
-            System.out.println(generation);
-            System.out.println(average(ages()));
-            covariance = covariance(positions());
-            List<Individual> offspring = sample(size/2);
-            individuals.addAll(offspring);
-            selection(size);
+            for(int i = 0; i < individuals.size(); i++)
+                individuals.get(i).age++;
         }
 
-        public double stepSize()
+        public void report()
+        {
+            System.out.print(generation);
+            System.out.print(" | Age: ");
+            System.out.print(average(ages()));
+            System.out.print(" | Fit: ");
+            System.out.print(average(fitness()));
+            System.out.print(" | LR: ");
+            System.out.print(bump);
+            System.out.println();
+        }
+
+        public double sigma()
         {
             // todo make step size not static
-            return 2;
+            return 1 * bump;
         }
 
         public List<Individual> sample(int n)
@@ -138,7 +134,7 @@ public class player28_morris implements ContestSubmission
             List<Individual> offspring = new ArrayList<Individual>();
             for(int i = 0; i < n; i++){
                 Individual baby = new Individual();
-                baby.position = plus(mean, mult(stepSize(), mult(covariance, norm(nDim))));
+                baby.position = plus(mean, mult(mult(L_cov, norm(nDim)), sigma()));
                 baby.fitness();
                 offspring.add(baby);
             }
@@ -148,17 +144,32 @@ public class player28_morris implements ContestSubmission
         public void selection(int mu)
         {
             // todo Make weights NOT static and resize the indiviual array
+            double[] new_mean = zeros(nDim);
             Collections.sort(individuals);
-            double[] mean = zeros(nDim);
-            for(int i = 0; i < mu; i++){
-                double weight = 1 / mu;
+            double weight = 1 / (double)mu;
+            for(int i = 0; i < mu; i++)
                 for(int x = 0; x < nDim; x++)
-                    mean[x] += weight * individuals.get(i).position[x];
-            }
+                    new_mean[x] += weight * individuals.get(i).position[x];
             while (individuals.size() > mu)
                 individuals.remove(individuals.size() - 1);
             size = mu;
-            this.mean = mean;
+            if(average(plus(mult(mean, -1), new_mean)) < 10E-8){
+                bump *= 1.5;
+            }else{
+                bump = 1;
+            }
+            mean = new_mean;
+        }
+
+        public void nextGeneration()
+        {
+            newYear();
+            report();
+            covariance = covariance(positions());
+            L_cov = cholesky(covariance);
+            List<Individual> offspring = sample((int)(size * birthrate));
+            individuals.addAll(offspring);
+            selection(size);
         }
     }
 
@@ -199,11 +210,13 @@ public class player28_morris implements ContestSubmission
 
 	public void run()
 	{
-        Tribe tribe = new Tribe();
-        tribe.addRandom(100);
-        while(true){
-            tribe.nextGeneration();
-        }
+        Population population = new Population();
+        population.addRandom(nInd);
+        population.selection(nInd);
+        // for (int i = 0; i < 3; i++)
+        //     population.nextGeneration();
+        while(true)
+            population.nextGeneration();
     }
 
     public double[] zeros(int length)
@@ -280,6 +293,13 @@ public class player28_morris implements ContestSubmission
         return covariance;
     }
 
+    public double[] plus(double[] vector, double scalar)
+    {
+        for (int i = 0; i < vector.length; i++)
+            vector[i] += scalar;
+        return vector;
+    }
+
     public double[] plus(double[] left, double[] right)
     {
         double[] result = new double[left.length];
@@ -306,14 +326,14 @@ public class player28_morris implements ContestSubmission
         return result;
     }
 
-    public double[] mult(double scalar, double[] vector)
+    public double[] mult(double[] vector, double scalar)
     {
         for(int i = 0; i < vector.length; i++)
             vector[i] *= scalar;
         return vector;
     }
 
-    public double[][] mult(double scalar, double[][] matrix)
+    public double[][] mult(double[][] matrix, double scalar)
     {
         for(int h = 0; h < matrix.length; h++)
             for(int w = 0; w < matrix[0].length; w++)
@@ -321,9 +341,30 @@ public class player28_morris implements ContestSubmission
         return matrix;
     }
 
+    public double[][] cholesky(double[][] matrix) {
+        int n  = matrix.length;
+        double[][] L = new double[n][n];
+
+        for (int i = 0; i < n; i++){
+            for (int j = 0; j <= i; j++){
+                double sum = 0.0;
+                for (int k = 0; k < j; k++)
+                    sum += L[i][k] * L[j][k];
+                if (i == j) L[i][i] = Math.sqrt(matrix[i][i] - sum);
+                else        L[i][j] = 1.0 / L[j][j] * (matrix[i][j] - sum);
+            }
+            if (L[i][i] <= 0)
+                throw new RuntimeException("Matrix not positive definite");
+        }
+        return L;
+    }
+
     public void print(double[] vector)
     {
-        System.out.println(Arrays.toString(vector));
+        for (int i = 0; i < vector.length; i++)
+            System.out.print(vector[i]);
+            // System.out.format("%10.3f", vector[i]);
+        System.out.println();
     }
 
     public void print(double[][] matrix)
