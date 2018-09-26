@@ -55,9 +55,8 @@ public class player28_morris implements ContestSubmission
     {
         public int size;
         public List<Individual> individuals;
-        public double[][] covariance;
-        public double[][] L_cov;
-        public double[] mean;
+        public Matrix covariance;
+        public Vector mean;
         public int generation;
         public double bump = 1.0D;
 
@@ -65,7 +64,7 @@ public class player28_morris implements ContestSubmission
         {
             size = 0;
             generation = 1;
-            mean = new double[nDim];
+            mean = new Vector(nDim);
             individuals = new ArrayList<Individual>();
         }
 
@@ -80,27 +79,27 @@ public class player28_morris implements ContestSubmission
             size += n;
         }
 
-        public double[][] positions()
+        public Matrix positions()
         {
-            double[][] positions = zeros(size, nDim);
+            Matrix positions = new Matrix(size, nDim);
             for(int i = 0; i < size; i++)
-                positions[i] = individuals.get(i).position;
+                positions.data[i] = individuals.get(i).position;
             return positions;
         }
 
-        public double[] ages()
+        public Vector ages()
         {
-            double[] ages = new double[size];
+            Vector ages = new Vector(size);
             for(int i = 0; i < size; i++)
-                ages[i] = individuals.get(i).age;
+                ages.data[i] = individuals.get(i).age;
             return ages;
         }
 
-        public double[] fitness()
+        public Vector fitness()
         {
-            double[] fitness = new double[size];
+            Vector fitness = new Vector(size);
             for(int i = 0; i < size; i++)
-                fitness[i] = individuals.get(i).fitness();
+                fitness.data[i] = individuals.get(i).fitness();
             return fitness;
         }
 
@@ -115,9 +114,9 @@ public class player28_morris implements ContestSubmission
         {
             System.out.print(generation);
             System.out.print(" | Age: ");
-            System.out.print(average(ages()));
+            System.out.print(ages().mean());
             System.out.print(" | Fit: ");
-            System.out.print(average(fitness()));
+            System.out.print(fitness().mean());
             System.out.print(" | LR: ");
             System.out.print(bump);
             System.out.println();
@@ -129,12 +128,13 @@ public class player28_morris implements ContestSubmission
             return 1 * bump;
         }
 
-        public List<Individual> sample(int n)
+        public List<Individual> offspring(int n)
         {
             List<Individual> offspring = new ArrayList<Individual>();
+            Matrix sampled_positions = sample(mean, covariance, n);
             for(int i = 0; i < n; i++){
                 Individual baby = new Individual();
-                baby.position = plus(mean, mult(mult(L_cov, norm(nDim)), sigma()));
+                baby.position = sampled_positions.data[i];
                 baby.fitness();
                 offspring.add(baby);
             }
@@ -144,16 +144,17 @@ public class player28_morris implements ContestSubmission
         public void selection(int mu)
         {
             // todo Make weights NOT static and resize the indiviual array
-            double[] new_mean = zeros(nDim);
+            Vector new_mean = new Vector(nDim);
             Collections.sort(individuals);
             double weight = 1 / (double)mu;
             for(int i = 0; i < mu; i++)
-                for(int x = 0; x < nDim; x++)
-                    new_mean[x] += weight * individuals.get(i).position[x];
+                for(int d = 0; d < nDim; d++)
+                    new_mean.data[d] += weight * individuals.get(i).position[d];
             while (individuals.size() > mu)
                 individuals.remove(individuals.size() - 1);
             size = mu;
-            if(average(plus(mult(mean, -1), new_mean)) < 10E-8){
+
+            if(mean.minus(new_mean).mean() < 10E-8){
                 bump *= 1.5;
             }else{
                 bump = 1;
@@ -165,11 +166,192 @@ public class player28_morris implements ContestSubmission
         {
             newYear();
             report();
-            covariance = covariance(positions());
-            L_cov = cholesky(covariance);
-            List<Individual> offspring = sample((int)(size * birthrate));
-            individuals.addAll(offspring);
+            covariance = positions().covariance();
+            List<Individual> children = offspring((int)(size * birthrate));
+            individuals.addAll(children);
             selection(size);
+        }
+    }
+
+    public class Matrix
+    {
+        public final int N;
+        public final int Dim;
+        public final double[][] data;
+
+        public Matrix(int N, int Dim)
+        {
+            this.N = N;
+            this.Dim = Dim;
+            data = new double[N][Dim];
+        }
+
+        public Matrix(double[][] data)
+        {
+            N = data.length;
+            Dim = data[0].length;
+            this.data = new double[N][Dim];
+            for (int i = 0; i < N; i++)
+                for (int d = 0; d < Dim; d++)
+                        this.data[i][d] = data[i][d];
+        }
+
+        private Matrix(Matrix other)
+        {
+            this(other.data);
+        }
+
+        public Matrix plus(Vector vector)
+        {
+            Matrix result = new Matrix(this);
+            for(int i = 0; i < N; i++)
+                for(int d = 0; d < Dim; d++)
+                    result.data[i][d] += vector.data[d];
+            return result;
+        }
+
+        public Matrix times(double scalar)
+        {
+            Matrix result = new Matrix(this);
+            for(int i = 0; i < N; i++)
+                for(int d = 0; d < Dim; d++)
+                    result.data[i][d] *= scalar;
+            return result;
+        }
+
+        public Vector times(Vector vector)
+        {
+            Vector result = new Vector(Dim);
+            for(int i = 0; i < N; i++)
+                for(int d = 0; d < Dim; d++)
+                    result.data[d] += data[i][d] * vector.data[d];
+            return result;
+        }
+
+        public Vector mean()
+        {
+            Vector mean = new Vector(Dim);
+            for(int n = 0; n < N; n++)
+                for(int d = 0; d < Dim; d++)
+                    mean.data[d] += data[n][d];
+            for(int d = 0; d < Dim; d++)
+                mean.data[d] /= N;
+            return mean;
+        }
+
+        public Matrix covariance()
+        {
+            Matrix covariance = new Matrix(Dim, Dim);
+            Vector mean = mean();
+            for(int i = 0; i < N; i++)
+                for(int d = i; d < Dim; d++){
+                    double c = 0;
+                    for(int h = 0; h < N; h++)
+                        c +=  (data[h][i] - mean.data[i]) * (data[h][d] - mean.data[d]);
+                    c /= N - 1;
+                    covariance.data[i][d] = c;
+                    covariance.data[d][i] = c;
+                }
+            return covariance;
+        }
+
+        public Matrix cholesky()
+        {
+            Matrix L = new Matrix(N, N);
+
+            for (int i = 0; i < N; i++){
+                for (int j = 0; j <= i; j++){
+                    double sum = 0.0;
+                    for (int k = 0; k < j; k++)
+                        sum += L.data[i][k] * L.data[j][k];
+                    if (i == j) L.data[i][i] = Math.sqrt(data[i][i] - sum);
+                    else        L.data[i][j] = 1.0 / L.data[j][j] * (data[i][j] - sum);
+                }
+                if (L.data[i][i] <= 0)
+                    throw new RuntimeException("Matrix not positive definite");
+            }
+            return L;
+        }
+
+        public void print()
+        {
+            for(int i = 0; i < N; i++)
+                System.out.println(Arrays.toString(data[i]));
+            System.out.println();
+        }
+    }
+
+    public class Vector
+    {
+        public final int length;
+        public final double[] data;
+
+        public Vector(int length)
+        {
+            this.length = length;
+            data = new double[length];
+        }
+
+        public Vector(double[] data)
+        {
+            length = data.length;
+            this.data = new double[length];
+            for (int l = 0; l < length; l++)
+                    this.data[l] = data[l];
+        }
+
+        private Vector(Vector other)
+        {
+            this(other.data);
+        }
+
+        public double mean()
+        {
+            double sum = 0;
+            for(int i = 0; i < length; i++)
+                sum += data[i];
+            return sum / (double)length;
+        }
+
+        public Vector plus(double scalar)
+        {
+            Vector result = new Vector(this);
+            for (int i = 0; i < length; i++)
+                result.data[i] += scalar;
+            return result;
+        }
+
+        public Vector plus(Vector other)
+        {
+            Vector result = new Vector(this);
+            for(int i = 0; i < length; i++)
+                result.data[i] += other.data[i];
+            return result;
+        }
+
+        public Vector minus(Vector other)
+        {
+            Vector result = new Vector(this);
+            for(int i = 0; i < length; i++)
+                result.data[i] -= other.data[i];
+            return result;
+        }
+
+        public Vector times(double scalar)
+        {
+            Vector result = new Vector(this);
+            for(int i = 0; i < length; i++)
+                result.data[i] *= scalar;
+            return result;
+        }
+
+        public void print()
+        {
+            for (int i = 0; i < length; i++){
+                System.out.print(data[i]);
+                System.out.print(" ");
+            }
+            System.out.println();
         }
     }
 
@@ -217,162 +399,44 @@ public class player28_morris implements ContestSubmission
         //     population.nextGeneration();
         while(true)
             population.nextGeneration();
+
+        // double[] _mean = {0,1};
+        // double[][] _cov = {{1, 0}, {0, 0.2}};
+        // Vector mean = new Vector(_mean);
+        // Matrix cov = new Matrix(_cov);
+
+        // Matrix samples = sample(mean, cov, 1000);
+
+        // Vector estimated_mean = samples.mean();
+        // Matrix estimated_cov = samples.covariance();
+        // estimated_mean.print();
+        // estimated_cov.print();
     }
 
-    public double[] zeros(int length)
+    public Matrix sample(Vector mean, Matrix cov, int n)
     {
-        double[] result = new double[length];
-        for(int i = 0; i < length; i++)
-            result[i] = 0.0D;
+        Matrix result = new Matrix(n, cov.N);
+        Matrix L = cov.cholesky();
+        for (int i = 0; i < n; i++) {
+            Vector NI = new Vector(randn(cov.N));
+            result.data[i] = L.times(NI).plus(mean).data;
+        }
         return result;
-    }
-
-    public double[][] zeros(int height, int width)
-    {
-        double[][] matrix = new double[height][width];
-        for(int h = 0; h < height; h++)
-            for(int w = 0; w < width; w++)
-                matrix[h][w] = 0.0D;
-        return matrix;
-
     }
 
     public double[] rand(int length, double boundary)
     {
-        double[] vector = new double[length];
+        double[] result = new double[length];
         for(int i = 0; i < length; i++)
-            vector[i] = -boundary + 2 * boundary * rnd_.nextDouble();
-        return vector;
+        result[i] = -boundary + 2 * boundary * rnd_.nextDouble();
+        return result;
     }
 
-    public double[] norm(int length)
+    public double[] randn(int length)
     {
         double[] result = new double[length];
         for(int i = 0; i < length; i++)
             result[i] = rnd_.nextGaussian();
         return result;
-    }
-
-    public double average(double[] vector)
-    {
-        double sum = 0;
-        for(int i = 0; i < vector.length; i++)
-            sum += vector[i];
-        return sum / (double)vector.length;
-    }
-
-    public double[] mean(double[][] matrix)
-    {
-        int width = matrix[0].length;
-        int height = matrix.length;
-        double[] mean = new double[width];
-        for(int w = 0; w < width; w++)
-            for(int h = 0; h < height; h++)
-                mean[w] += matrix[h][w];
-        for(int w = 0; w < width; w++)
-            mean[w] /= height;
-        return mean;
-    }
-
-    public double[][] covariance(double[][] matrix)
-    {
-        int height = matrix.length;
-        int width = matrix[0].length;
-        double[][] covariance = zeros(width, width);
-        double[] mean = mean(matrix);
-        for(int x = 0; x < width; x++)
-            for(int y = x; y < width; y++){
-                double c = 0;
-                for(int h = 0; h < height; h++)
-                    c +=  (matrix[h][x] - mean[x]) * (matrix[h][y] - mean[y]);
-                c /= height - 1;
-                covariance[x][y] = c;
-                covariance[y][x] = c;
-            }
-
-        return covariance;
-    }
-
-    public double[] plus(double[] vector, double scalar)
-    {
-        for (int i = 0; i < vector.length; i++)
-            vector[i] += scalar;
-        return vector;
-    }
-
-    public double[] plus(double[] left, double[] right)
-    {
-        double[] result = new double[left.length];
-        for(int i = 0; i < left.length; i++)
-            result[i] = left[i] + right[i];
-        return result;
-    }
-
-    public double[][] plus(double[] vector, double[][] matrix)
-    {
-        for(int h = 0; h < matrix.length; h++)
-            for(int w = 0; w < matrix[0].length; w++)
-                matrix[h][w] += vector[w];
-        return matrix;
-    }
-
-    public double[] mult(double[][] matrix, double[] vector)
-    {
-        int width = matrix[0].length;
-        double[] result = zeros(width);
-        for(int h = 0; h < matrix.length; h++)
-            for(int w = 0; w < width; w++)
-                result[w] += matrix[h][w] * vector[w];
-        return result;
-    }
-
-    public double[] mult(double[] vector, double scalar)
-    {
-        for(int i = 0; i < vector.length; i++)
-            vector[i] *= scalar;
-        return vector;
-    }
-
-    public double[][] mult(double[][] matrix, double scalar)
-    {
-        for(int h = 0; h < matrix.length; h++)
-            for(int w = 0; w < matrix[0].length; w++)
-                matrix[h][w] *= scalar;
-        return matrix;
-    }
-
-    public double[][] cholesky(double[][] matrix) {
-        int n  = matrix.length;
-        double[][] L = new double[n][n];
-
-        for (int i = 0; i < n; i++){
-            for (int j = 0; j <= i; j++){
-                double sum = 0.0;
-                for (int k = 0; k < j; k++)
-                    sum += L[i][k] * L[j][k];
-                if (i == j) L[i][i] = Math.sqrt(matrix[i][i] - sum);
-                else        L[i][j] = 1.0 / L[j][j] * (matrix[i][j] - sum);
-            }
-            if (L[i][i] <= 0)
-                throw new RuntimeException("Matrix not positive definite");
-        }
-        return L;
-    }
-
-    public void print(double[] vector)
-    {
-        for (int i = 0; i < vector.length; i++)
-            System.out.print(vector[i]);
-            // System.out.format("%10.3f", vector[i]);
-        System.out.println();
-    }
-
-    public void print(double[][] matrix)
-    {
-        System.out.println();
-        for(int i = 0; i < matrix.length; i++){
-            print(matrix[i]);
-        }
-        System.out.println();
     }
 }
