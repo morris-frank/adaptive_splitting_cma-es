@@ -17,8 +17,12 @@ public class player28 implements ContestSubmission
     private int evaluations_limit_;
     protected static final double maxPos = 5.0D;
     protected static final int nDim = 10;
-    protected static final int nPopulations = 8;
     int evals;
+
+
+    // Parameters
+    int init_population_size;
+    double init_birthrate;
 
     public class Individual implements Comparable<Individual>
     {
@@ -57,13 +61,21 @@ public class player28 implements ContestSubmission
         public Matrix covariance;
         public Vector mean;
         public int generation;
-        public double bump = 1.0D;
         public double[] weights;
-        public double birthrate;
+        public double bump = 1.0D;
 
-        public Population(double birthrate)
+        //Parameters
+        public double birthrate;
+        public double lr_m;
+        public double lr_c;
+        public double max_age;
+
+        public Population(double birthrate, double lr_m, double lr_c, double max_age)
         {
             this.birthrate = birthrate;
+            this.lr_m = lr_m;
+            this.lr_m = lr_m;
+            this.max_age = max_age;
             size = 0;
             generation = 1;
             mean = new Vector(nDim);
@@ -128,14 +140,14 @@ public class player28 implements ContestSubmission
 
         public void report()
         {
-            System.out.print(generation);
-            System.out.print(" | AVG-Age: ");
-            System.out.print(ages().mean());
-            System.out.print(" | MAX-Fit: ");
-            System.out.print(fitness().max());
-            System.out.print(" | LR: ");
-            System.out.print(bump);
-            System.out.println();
+            // System.out.print(generation);
+            // System.out.print(" | AVG-Age: ");
+            // System.out.print(ages().mean());
+            // System.out.print(" | MAX-Fit: ");
+            // System.out.print(fitness().max());
+            // System.out.print(" | LR: ");
+            // System.out.print(bump);
+            // System.out.println();
         }
 
         public double sigma()
@@ -144,7 +156,7 @@ public class player28 implements ContestSubmission
             return 1 * bump;
         }
 
-        public List<Individual> offspring(int n)
+        public List<Individual> makeBabies(int n)
         {
             List<Individual> offspring = new ArrayList<Individual>();
             Matrix sampled_positions = sample(mean, covariance, n);
@@ -169,13 +181,10 @@ public class player28 implements ContestSubmission
 
             Vector new_mean = new Vector(nDim);
 
-            //Learning rate
-            double c_m = 0.9;
-
             for(int d = 0; d < nDim; d++) {
                 for(int i = 0; i < mu; i++)
                     new_mean.data[d] += weights[i] * (individuals.get(i).position[d] - mean.data[d]);
-                new_mean.data[d] *= c_m;
+                new_mean.data[d] *= lr_m;
                 new_mean.data[d] += mean.data[d];
             }
 
@@ -186,24 +195,30 @@ public class player28 implements ContestSubmission
 
         public void killElderly(int maxAge)
         {
-            ListIterator<Individual> indiIt = individuals.listIterator();
-            while(indiIt.hasNext()) {
-                Individual individual = indiIt.next();
-                if(individual.age > maxAge) {
-                    indiIt.remove();
+            if(maxAge > 0){
+                ListIterator<Individual> indiIt = individuals.listIterator();
+                while(indiIt.hasNext()) {
+                    Individual individual = indiIt.next();
+                    if(individual.age > maxAge) {
+                        indiIt.remove();
+                    }
                 }
             }
-            // size = individuals.size();
         }
 
         public boolean nextGeneration()
         {
-            newYear();
-            covariance = positions().covariance();
-            List<Individual> children = offspring((int)(size * birthrate));
-            individuals.addAll(children);
+            if(generation == 1) {
+                covariance = positions().covariance();
+            } else {
+                double d_C = 0.1;
+                covariance = covariance.times(d_C).plus(positions().covariance().times(1.0D - d_C));
+            }
+            List<Individual> babies = makeBabies((int)(size * birthrate));
+            individuals.addAll(babies);
             // killElderly(5);
             selection(size);
+            newYear();
             return evals < evaluations_limit_;
         }
     }
@@ -242,6 +257,15 @@ public class player28 implements ContestSubmission
             for(int i = 0; i < N; i++)
                 for(int d = 0; d < Dim; d++)
                     result.data[i][d] += vector.data[d];
+            return result;
+        }
+
+        public Matrix plus(Matrix other)
+        {
+            Matrix result = new Matrix(this);
+            for (int n = 0; n < N; n++)
+                for (int d = 0; d < Dim; d++)
+                    result.data[n][d] += other.data[n][d];
             return result;
         }
 
@@ -312,8 +336,11 @@ public class player28 implements ContestSubmission
                     if (i == j) L.data[i][i] = Math.sqrt(data[i][i] - sum);
                     else        L.data[i][j] = 1.0 / L.data[j][j] * (data[i][j] - sum);
                 }
-                if (L.data[i][i] <= 0)
-                    throw new RuntimeException("Matrix not positive definite");
+                // Yes this is wrong, but we're not mathematicians so shut up
+                if (L.data[i][i] <= 0){
+                    L.data[i][i] = 0;
+                    // throw new RuntimeException("Matrix not positive definite");
+                }
             }
             return L;
         }
@@ -420,7 +447,6 @@ public class player28 implements ContestSubmission
 	public player28()
 	{
         rnd_ = new Random();
-        evals = 0;
 	}
 
 	public void setSeed(long seed)
@@ -444,22 +470,31 @@ public class player28 implements ContestSubmission
         boolean hasStructure = Boolean.parseBoolean(props.getProperty("Regular"));
         boolean isSeparable = Boolean.parseBoolean(props.getProperty("Separable"));
 
-		// Do sth with property values, e.g. specify relevant settings of your algorithm
-        if(isMultimodal){
-            // Do sth
-        }else{
-            // Do sth else
+        if(!isMultimodal && !hasStructure && !isSeparable){
+            // BentCigar
+            int maxeval = 10000;
+            init_population_size = 100;
+            init_birthrate = 2D;
+        }else if(isMultimodal && hasStructure && !isSeparable){
+            // Schaffers
+            int maxeval = 100000;
+            init_population_size = 100;
+            init_birthrate = 2D;
+
+        }else if(isMultimodal && !hasStructure && !isSeparable){
+            // Katsuura
+            int maxeval = 1000000;
+            init_population_size = 1000;
+            init_birthrate = 7D;
         }
     }
 
 	public void run()
 	{
-        int population_size = 100;
-        double birthrate = 2D;
-
-        Population population = new Population(birthrate);
-        population.addRandom(population_size);
-        population.selection(population_size);
+        evals = 0;
+        Population population = new Population(init_birthrate, 0.9, 0.9, 0);
+        population.addRandom(init_population_size);
+        population.selection(init_population_size);
         while(population.nextGeneration()){
             population.report();
         }
