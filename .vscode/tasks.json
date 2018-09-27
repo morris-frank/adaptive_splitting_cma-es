@@ -11,7 +11,10 @@
             },
             "presentation": {
                 "echo": false,
-                "panel": "new",
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true
             }
         },
         {
