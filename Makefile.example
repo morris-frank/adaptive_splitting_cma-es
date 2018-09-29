@@ -11,10 +11,12 @@ help:
 	@echo '                                                                          '
 
 build:
-	javac -cp contest.jar $(BCLASS).java
-	jar cmf MainClass.txt submission.jar $(BCLASS)*.class
+	javac -cp contest.jar $(BCLASS).java Matrix.java Vector.java
+	jar cmf MainClass.txt submission.jar $(BCLASS)*.class Matrix.class Vector.class
 
 test:
-	java -jar testrun.jar -submission=$(BCLASS) -evaluation=BentCigarFunction -seed=1
+	# java -jar testrun.jar -submission=$(BCLASS) -evaluation=BentCigarFunction -seed=1
+	# java -jar testrun.jar -submission=$(BCLASS) -evaluation=SchaffersEvaluation -seed=1
+	java -jar testrun.jar -submission=$(BCLASS) -evaluation=KatsuuraEvaluation -seed=1
 
 .PHONY: help test build
