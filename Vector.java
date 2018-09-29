@@ -48,6 +48,14 @@ public class Vector
         return max;
     }
 
+    public double norm()
+    {
+        double norm = 0;
+        for (int i = 0; i < length; i++)
+            norm += data[i] * data[i];
+        return Math.sqrt(norm);
+    }
+
     public Vector plus(double scalar)
     {
         Vector result = new Vector(this);
@@ -78,6 +86,15 @@ public class Vector
         for(int i = 0; i < length; i++)
             result.data[i] *= scalar;
         return result;
+    }
+
+    public double inf_distance(Vector other)
+    {
+        double maxDif = 0;
+        for (int i = 0; i < length; i++)
+            if(Math.abs(this.data[i] - other.data[i]) > maxDif)
+                maxDif = Math.abs(this.data[i] - other.data[i]);
+        return maxDif;
     }
 
     public void print()

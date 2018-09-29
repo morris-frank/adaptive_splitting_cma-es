@@ -61,15 +61,15 @@ public class player28 implements ContestSubmission
         }else if(isMultimodal && !hasStructure && !isSeparable){
             // Katsuura
             int maxeval = 1000000;
-            init_population_size = 100;
-            init_birthrate = 7D;
+            init_population_size = 1000;
+            init_birthrate = 0.5D;
         }
     }
 
 	public void run()
 	{
         evals = 0;
-        Population population = new Population(init_birthrate, 0.9, 0.9, 0);
+        Population population = new Population(init_birthrate, 0.9);
         population.addRandom(init_population_size, maxPos);
         population.selection(init_population_size);
         while(population.nextGeneration()){
@@ -84,6 +84,17 @@ public class player28 implements ContestSubmission
         for (int i = 0; i < n; i++) {
             Vector NI = new Vector(randn(cov.N));
             result.data[i] = L.times(NI).plus(mean).data;
+        }
+        return result;
+    }
+
+    public Matrix sample(Matrix cov, int n)
+    {
+        Matrix result = new Matrix(n, cov.N);
+        Matrix L = cov.cholesky();
+        for(int i = 0; i < n; i++){
+            Vector NI = new Vector(randn(cov.N));
+            result.data[i] = L.times(NI).data;
         }
         return result;
     }
@@ -110,25 +121,24 @@ public class player28 implements ContestSubmission
         public List<Individual> individuals;
         public Matrix covariance;
         public Vector mean;
+        public Vector meanPath;
         public int generation;
         public double[] weights;
-        public double bump = 1.0D;
+        public double sigma;
 
         //Parameters
         public double birthrate;
-        public double lr_m;
-        public double lr_c;
-        public double max_age;
+        public double lr;
 
-        public Population(double birthrate, double lr_m, double lr_c, double max_age)
+        public Population(double birthrate, double lr)
         {
             this.birthrate = birthrate;
-            this.lr_m = lr_m;
-            this.lr_m = lr_m;
-            this.max_age = max_age;
+            this.lr = lr;
             size = 0;
+            sigma = 1;
             generation = 1;
             mean = new Vector(nDim);
+            meanPath = new Vector(nDim);
             individuals = new ArrayList<Individual>();
             genWeights();
         }
@@ -195,21 +205,17 @@ public class player28 implements ContestSubmission
             System.out.print(ages().mean());
             System.out.print(" | MAX-Fit: ");
             System.out.print(fitness().max());
-            System.out.print(" | LR: ");
-            System.out.print(bump);
+            System.out.print(" | Sigma: ");
+            System.out.print(sigma);
+            System.out.print(" | MP Norm: ");
+            System.out.print(meanPath.norm());
             System.out.println();
-        }
-
-        public double sigma()
-        {
-            // todo make step size not static
-            return 1 * bump;
         }
 
         public List<Individual> makeBabies(int n)
         {
             List<Individual> offspring = new ArrayList<Individual>();
-            Matrix sampled_positions = sample(mean, covariance, n);
+            Matrix sampled_positions = sample(covariance, n).times(sigma).plus(mean);
             for(int i = 0; i < n; i++){
                 Individual baby = new Individual();
                 baby.position = sampled_positions.data[i];
@@ -222,23 +228,34 @@ public class player28 implements ContestSubmission
 
         public void selection(int mu)
         {
+            // Sort by fitness
             Collections.sort(individuals);
+
+            // only let fitesst babies survive
             while (individuals.size() > mu)
                 individuals.remove(individuals.size() - 1);
             size = mu;
 
+            updateMean();
+            updateSigma();
+        }
+
+        public void updateMean()
+        {
             Vector new_mean = new Vector(nDim);
 
-            for(int d = 0; d < nDim; d++) {
-                for(int i = 0; i < mu; i++)
+            for(int d = 0; d < nDim; d++)
+                for(int i = 0; i < size; i++)
                     new_mean.data[d] += weights[i] * (individuals.get(i).position[d] - mean.data[d]);
-                new_mean.data[d] *= lr_m;
-                new_mean.data[d] += mean.data[d];
-            }
 
-            if(mean.minus(new_mean).mean() < 10E-8) bump *= 1.5;
-            else bump = 1;
+            new_mean = new_mean.times(lr).plus(mean.times(1 - lr));
+            meanPath = new_mean.minus(mean).times(1/sigma).times(lr).plus(meanPath.times(1 - lr));
             mean = new_mean;
+        }
+
+        public void updateSigma()
+        {
+            sigma = sigma + Math.exp(meanPath.norm()/nDim - 1);
         }
 
         public void killElderly(int maxAge)
@@ -256,15 +273,13 @@ public class player28 implements ContestSubmission
 
         public boolean nextGeneration()
         {
-            if(generation == 1) {
+            if(generation == 1)
                 covariance = positions().covariance();
-            } else {
-                double d_C = 0.1;
-                covariance = covariance.times(d_C).plus(positions().covariance().times(1.0D - d_C));
-            }
+            else
+                covariance = covariance.times(1 - lr).plus(positions().covariance().times(lr));
             List<Individual> babies = makeBabies((int)(size * birthrate));
             individuals.addAll(babies);
-            // killElderly(5);
+            // killElderly(100);
             selection(size);
             newYear();
             return evals < evaluations_limit_;
