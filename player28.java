@@ -215,7 +215,8 @@ public class player28 implements ContestSubmission
         public List<Individual> makeBabies(int n)
         {
             List<Individual> offspring = new ArrayList<Individual>();
-            Matrix sampled_positions = sample(covariance, n).times(sigma).plus(mean);
+            // Matrix sampled_positions = sample(covariance, n).times(sigma).plus(mean);
+            Matrix sampled_positions = sample(covariance, n).plus(mean);
             for(int i = 0; i < n; i++){
                 Individual baby = new Individual();
                 baby.position = sampled_positions.data[i];
