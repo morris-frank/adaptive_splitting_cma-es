@@ -88,6 +88,14 @@ public class Vector
         return result;
     }
 
+    public double times(Vector other)
+    {
+        double result = 0;
+        for (int i = 0; i < length; i++)
+            result += this.data[i] * other.data[i];
+        return result;
+    }
+
     public double inf_distance(Vector other)
     {
         double maxDif = 0;
