@@ -57,10 +57,19 @@ public class Matrix
 
     public Vector times(Vector vector)
     {
-        Vector result = new Vector(Dim);
+        Vector result = new Vector(N);
         for(int i = 0; i < N; i++)
             for(int d = 0; d < Dim; d++)
-                result.data[d] += data[i][d] * vector.data[d];
+                result.data[i] += data[i][d] * vector.data[d];
+        return result;
+    }
+
+    public Matrix T()
+    {
+        Matrix result = new Matrix(Dim, N);
+        for (int i = 0; i < N; i++)
+            for (int d = 0; d < Dim; d++)
+                result.data[d][i] = this.data[i][d];
         return result;
     }
 

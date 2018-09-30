@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Properties;
 import java.util.Random;
+// import java.util.Vector;
 
 public class player28 implements ContestSubmission
 {
@@ -215,8 +216,8 @@ public class player28 implements ContestSubmission
         public List<Individual> makeBabies(int n)
         {
             List<Individual> offspring = new ArrayList<Individual>();
-            // Matrix sampled_positions = sample(covariance, n).times(sigma).plus(mean);
-            Matrix sampled_positions = sample(covariance, n).plus(mean);
+            Matrix sampled_positions = sample(covariance, n).times(sigma).plus(mean);
+            // Matrix sampled_positions = sample(covariance, n).plus(mean);
             for(int i = 0; i < n; i++){
                 Individual baby = new Individual();
                 baby.position = sampled_positions.data[i];
@@ -249,7 +250,7 @@ public class player28 implements ContestSubmission
                 for(int i = 0; i < size; i++)
                     new_mean.data[d] += weights[i] * (individuals.get(i).position[d] - mean.data[d]);
 
-            new_mean = new_mean.times(lr).plus(mean.times(1 - lr));
+            new_mean = new_mean.times(lr).plus(mean);
             meanPath = new_mean.minus(mean).times(1/sigma).times(lr).plus(meanPath.times(1 - lr));
             mean = new_mean;
         }
