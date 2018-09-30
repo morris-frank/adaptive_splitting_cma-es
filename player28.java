@@ -52,7 +52,7 @@ public class player28 implements ContestSubmission
             // BentCigar
             int maxeval = 10000;
             init_population_size = 100;
-            init_birthrate = 2D;
+            init_birthrate = 0.5D;
         }else if(isMultimodal && hasStructure && !isSeparable){
             // Schaffers
             int maxeval = 100000;
@@ -62,8 +62,8 @@ public class player28 implements ContestSubmission
         }else if(isMultimodal && !hasStructure && !isSeparable){
             // Katsuura
             int maxeval = 1000000;
-            init_population_size = 1000;
-            init_birthrate = 0.5D;
+            init_population_size = 100;
+            init_birthrate = 5D;
         }
     }
 
@@ -72,9 +72,9 @@ public class player28 implements ContestSubmission
         evals = 0;
         Population population = new Population(init_birthrate, 0.9);
         population.addRandom(init_population_size, maxPos);
-        population.selection(init_population_size);
+        population.select(init_population_size);
         while(population.nextGeneration()){
-            population.report();
+            // population.report();
         }
     }
 
@@ -201,21 +201,16 @@ public class player28 implements ContestSubmission
 
         public void report()
         {
-            System.out.print(generation);
-            System.out.print(" | AVG-Age: ");
-            System.out.print(ages().mean());
-            System.out.print(" | MAX-Fit: ");
-            System.out.print(fitness().max());
-            System.out.print(" | Sigma: ");
-            System.out.print(sigma);
-            System.out.print(" | MP Norm: ");
-            System.out.print(meanPath.norm());
+            System.out.format(">% 5d", generation);
+            System.out.format(" | AVG-Age: %6.2e", ages().mean());
+            System.out.format(" | MAX-Fit: %6.2e", fitness().max());
+            System.out.format(" | SIGMA: %6.2e", sigma);
+            System.out.format(" | MAX COV: %6.2e", covariance.max());
             System.out.println();
         }
 
-        public List<Individual> makeBabies(int n)
+        public void reproduce(int n)
         {
-            List<Individual> offspring = new ArrayList<Individual>();
             Matrix sampled_positions = sample(covariance, n).times(sigma).plus(mean);
             // Matrix sampled_positions = sample(covariance, n).plus(mean);
             for(int i = 0; i < n; i++){
@@ -223,12 +218,11 @@ public class player28 implements ContestSubmission
                 baby.position = sampled_positions.data[i];
                 baby.fitness();
                 if(evals == evaluations_limit_) break;
-                offspring.add(baby);
+                individuals.add(baby);
             }
-            return offspring;
         }
 
-        public void selection(int mu)
+        public void select(int mu)
         {
             // Sort by fitness
             Collections.sort(individuals);
@@ -244,6 +238,9 @@ public class player28 implements ContestSubmission
 
         public void updateMean()
         {
+            double mueff = (double)size/4;
+            double cc = 1 / ((Math.sqrt(nDim) + nDim)/2);
+
             Vector new_mean = new Vector(nDim);
 
             for(int d = 0; d < nDim; d++)
@@ -251,13 +248,24 @@ public class player28 implements ContestSubmission
                     new_mean.data[d] += weights[i] * (individuals.get(i).position[d] - mean.data[d]);
 
             new_mean = new_mean.times(lr).plus(mean);
-            meanPath = new_mean.minus(mean).times(1/sigma).times(lr).plus(meanPath.times(1 - lr));
+            meanPath = new_mean.minus(mean).times(cc).plus(meanPath.times(1 - cc));
             mean = new_mean;
         }
 
         public void updateSigma()
         {
-            sigma = sigma + Math.exp(meanPath.norm()/nDim - 1);
+            double mueff = (double)size/4;
+            double csigma = (mueff + 2)/(nDim + mueff + 5);
+            double dsigma = 1 + csigma + Math.max(0, Math.sqrt((mueff - 1)/(nDim +1))-1);
+            sigma *= Math.exp(csigma / dsigma / 1000 * (meanPath.norm()/Math.sqrt(nDim) - 1));
+        }
+
+        public void updateCovariance()
+        {
+            if(generation == 1)
+                covariance = positions().covariance();
+            else
+                covariance = covariance.times(1 - lr).plus(positions().covariance().times(lr));
         }
 
         public void killElderly(int maxAge)
@@ -275,14 +283,10 @@ public class player28 implements ContestSubmission
 
         public boolean nextGeneration()
         {
-            if(generation == 1)
-                covariance = positions().covariance();
-            else
-                covariance = covariance.times(1 - lr).plus(positions().covariance().times(lr));
-            List<Individual> babies = makeBabies((int)(size * birthrate));
-            individuals.addAll(babies);
+            updateCovariance();
+            reproduce((int)(size * birthrate));
             // killElderly(100);
-            selection(size);
+            select(size);
             newYear();
             return evals < evaluations_limit_;
         }
