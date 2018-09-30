@@ -131,6 +131,17 @@ public class Matrix
         return L;
     }
 
+    public Vector powerIteration()
+    {
+        Vector result = new Vector(N);
+        for (int i = 0; i < N; i++)
+            result.data[i] = 1;
+        for (int i = 0; i < 10; i++) {
+            result = this.times(result).times(1/result.norm());
+        }
+        return result;
+    }
+
     public void print()
     {
         for(int i = 0; i < N; i++)

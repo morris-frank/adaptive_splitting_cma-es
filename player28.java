@@ -74,7 +74,7 @@ public class player28 implements ContestSubmission
         population.addRandom(init_population_size, maxPos);
         population.select(init_population_size);
         while(population.nextGeneration()){
-            // population.report();
+            population.report();
         }
     }
 
@@ -201,11 +201,14 @@ public class player28 implements ContestSubmission
 
         public void report()
         {
+            Vector lambda = covariance.powerIteration();
+            double e1 = covariance.times(lambda).times(lambda)/lambda.times(lambda);
             System.out.format(">% 5d", generation);
             System.out.format(" | AVG-Age: %6.2e", ages().mean());
             System.out.format(" | MAX-Fit: %6.2e", fitness().max());
             System.out.format(" | SIGMA: %6.2e", sigma);
             System.out.format(" | MAX COV: %6.2e", covariance.max());
+            System.out.format(" | %6.2e", e1);
             System.out.println();
         }
 
