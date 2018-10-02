@@ -17,6 +17,8 @@ public class player28 implements ContestSubmission
     protected static final double maxPos = 5.0D;
     protected static final int nDim = 10;
     int evals;
+    int nextTribe;
+    List<Population> tribes;
 
     // Parameters
     int init_population_size;
@@ -25,6 +27,8 @@ public class player28 implements ContestSubmission
 	public player28()
 	{
         rnd_ = new Random();
+        nextTribe = 0;
+        tribes = new ArrayList<Population>();
 	}
 
 	public void setSeed(long seed)
@@ -73,8 +77,15 @@ public class player28 implements ContestSubmission
         Population population = new Population(init_birthrate, 0.9);
         population.addRandom(init_population_size, maxPos);
         population.select(init_population_size);
-        while(population.nextGeneration()){
-            population.report();
+        tribes.add(population);
+        boolean somethinLeft = true;
+        while(somethinLeft){
+            int numTribes = tribes.size();
+            for (int i = 0; i < numTribes; i++) {
+                somethinLeft = tribes.get(i).nextGeneration();
+                tribes.get(i).report();
+            }
+            System.out.println();
         }
     }
 
@@ -125,7 +136,9 @@ public class player28 implements ContestSubmission
         public Vector meanPath;
         public int generation;
         public double[] weights;
+        public double mu_weights;
         public double sigma;
+        public int id;
 
         //Parameters
         public double birthrate;
@@ -142,18 +155,24 @@ public class player28 implements ContestSubmission
             meanPath = new Vector(nDim);
             individuals = new ArrayList<Individual>();
             genWeights();
+            id = nextTribe;
+            nextTribe++;
         }
 
         private void genWeights()
         {
             weights = new double[size];
             int sum = 0;
+            mu_weights = 0;
             for (int i = 0; i < size; i++) {
                 weights[i] = size - i + 1;
                 sum += weights[i];
             }
-            for (int i = 0; i < size; i++)
+            for (int i = 0; i < size; i++){
                 weights[i] /= sum;
+                mu_weights += weights[i] * weights[i];
+            }
+            mu_weights = 1.0D/mu_weights;
         }
 
         public void addRandom(int n, double maxPos)
@@ -201,14 +220,16 @@ public class player28 implements ContestSubmission
 
         public void report()
         {
-            Vector lambda = covariance.powerIteration();
-            double e1 = covariance.times(lambda).times(lambda)/lambda.times(lambda);
-            System.out.format(">% 5d", generation);
+            // System.out.format(">% 5d", generation);
+            // System.out.println();
+            // System.out.format(" | MAX-Fit: %6.2e", fitness().max());
+            // System.out.format(" | MAX COV: %6.2e", covariance.max());
+            System.out.format(" #%3d", id);
             System.out.format(" | AVG-Age: %6.2e", ages().mean());
             System.out.format(" | MAX-Fit: %6.2e", fitness().max());
             System.out.format(" | SIGMA: %6.2e", sigma);
-            System.out.format(" | MAX COV: %6.2e", covariance.max());
-            System.out.format(" | %6.2e", e1);
+            System.out.format(" | MP-Norm: %6.2e", meanPath.norm());
+            // System.out.format(" | %3d", individuals.size());
             System.out.println();
         }
 
@@ -241,8 +262,10 @@ public class player28 implements ContestSubmission
 
         public void updateMean()
         {
-            double mueff = (double)size/4;
-            double cc = 1 / ((Math.sqrt(nDim) + nDim)/2);
+            // double mueff = (double)size/4;
+            // double cc = 1 / ((Math.sqrt(nDim) + nDim)/2);
+            double csigma = 4.0D / nDim;
+            double dsigma = 1.0D;
 
             Vector new_mean = new Vector(nDim);
 
@@ -250,17 +273,25 @@ public class player28 implements ContestSubmission
                 for(int i = 0; i < size; i++)
                     new_mean.data[d] += weights[i] * (individuals.get(i).position[d] - mean.data[d]);
 
-            new_mean = new_mean.times(lr).plus(mean);
-            meanPath = new_mean.minus(mean).times(cc).plus(meanPath.times(1 - cc));
+            // new_mean = new_mean.times(lr).plus(mean);
+            new_mean = new_mean.plus(mean);
+            // meanPath = new_mean.minus(mean).times(1/sigma).times(cc).plus(meanPath.times(1 - cc));
+            meanPath = meanPath.times(1.0D - csigma).plus(new_mean.minus(mean).times(1.0D/sigma).times(Math.sqrt(mu_weights)).times(Math.sqrt(1.0D - Math.pow(1.0D - csigma, 2))));
+            // meanPath = new_mean.minus(mean).times(1.0D/sigma).times()
             mean = new_mean;
         }
 
         public void updateSigma()
         {
-            double mueff = (double)size/4;
-            double csigma = (mueff + 2)/(nDim + mueff + 5);
-            double dsigma = 1 + csigma + Math.max(0, Math.sqrt((mueff - 1)/(nDim +1))-1);
-            sigma *= Math.exp(csigma / dsigma / 1000 * (meanPath.norm()/Math.sqrt(nDim) - 1));
+            // double mueff = (double)size/4;
+            // double csigma = (mueff + 2)/(nDim + mueff + 5);
+            // double dsigma = 1 + csigma + Math.max(0, Math.sqrt((mueff - 1)/(nDim +1))-1);
+            // sigma *= Math.exp(csigma / dsigma / 1000 * (meanPath.norm()/Math.sqrt(nDim) - 1));
+            // sigma *= Math.exp(csigma / dsigma * (meanPath.norm()/Math.sqrt(nDim) - 1));
+            // double csigma = 4.0D / nDim;
+            // double dsigma = 1.0D;
+            // sigma *= Math.exp(csigma / dsigma * ((meanPath.norm()/Math.sqrt(nDim)) - 1));
+            sigma *= 0.999;
         }
 
         public void updateCovariance()
@@ -273,20 +304,56 @@ public class player28 implements ContestSubmission
 
         public void killElderly(int maxAge)
         {
-            if(maxAge > 0){
+            ListIterator<Individual> indiIt = individuals.listIterator();
+            while(indiIt.hasNext()) {
+                Individual individual = indiIt.next();
+                if(individual.age > maxAge) {
+                    indiIt.remove();
+                }
+            }
+        }
+
+        public void split()
+        {
+            double maxEig = 8;
+
+            Vector eigV = covariance.powerIteration();
+            double eig = covariance.times(eigV).times(eigV)/eigV.times(eigV);
+
+            if (eig > maxEig && generation > 4){
+                Population newTribe = new Population(init_birthrate, 0.9);
                 ListIterator<Individual> indiIt = individuals.listIterator();
                 while(indiIt.hasNext()) {
                     Individual individual = indiIt.next();
-                    if(individual.age > maxAge) {
+                    Vector position = new Vector(individual.position);
+                    double dirStrength = position.minus(mean).times(eigV);
+                    if(dirStrength > 0 || (dirStrength == 0 && rnd_.nextBoolean())){
+                        Individual defector = new Individual();
+                        defector.position = individual.position;
+                        defector.fitness = individual.fitness;
+                        defector.age = individual.age;
+                        newTribe.individuals.add(defector);
                         indiIt.remove();
+                        newTribe.size++;
                     }
                 }
+                newTribe.mean = newTribe.positions().mean();
+                newTribe.covariance =  newTribe.positions().covariance();
+                if(newTribe.size < 100){
+                    newTribe.reproduce(100 - newTribe.size);
+                }
+                newTribe.size = newTribe.individuals.size();
+                newTribe.genWeights();
+                newTribe.select(100);
+                tribes.add(newTribe);
             }
+
         }
 
         public boolean nextGeneration()
         {
             updateCovariance();
+            split();
             reproduce((int)(size * birthrate));
             // killElderly(100);
             select(size);
