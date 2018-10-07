@@ -16,7 +16,7 @@ import Jama.util.*;
    The Java Matrix Class provides the fundamental operations of numerical
    linear algebra.  Various constructors create Matrices from two dimensional
    arrays of double precision floating point numbers.  Various "gets" and
-   "sets" provide access to submatrices and matrix elements.  Several methods 
+   "sets" provide access to submatrices and matrix elements.  Several methods
    implement basic matrix arithmetic, including matrix addition and
    multiplication, matrix norms, and element-by-element array operations.
    Methods for reading and printing matrices are also included.  All the
@@ -74,7 +74,7 @@ public class Matrix implements Cloneable, java.io.Serializable {
    Constructors
  * ------------------------ */
 
-   /** Construct an m-by-n matrix of zeros. 
+   /** Construct an m-by-n matrix of zeros.
    @param m    Number of rows.
    @param n    Number of colums.
    */
@@ -473,6 +473,38 @@ public class Matrix implements Cloneable, java.io.Serializable {
       return X;
    }
 
+
+   /** Maximum value
+    @return the single maximum value
+    */
+   public double max() {
+      double max = 0;
+      for (int i = 0; i < m; i++) {
+         for (int j = 0; j < n; j++) {
+            if(A[i][j] > max) {
+               max = A[i][j];
+            }
+         }
+      }
+      return max;
+   }
+
+   /** Mean row
+    @return the mean row
+    */
+   public double[] mean() {
+      double[] mean = new double[n];
+      for (int i = 0; i < m; i++) {
+         for (int j = 0; j < n; j++) {
+            mean[j] += A[i][j];
+         }
+      }
+      for (int j = 0; j < n; j++) {
+         mean[j] /= m;
+      }
+      return mean;
+   }
+
    /** One norm
    @return    maximum column sum.
    */
@@ -573,6 +605,35 @@ public class Matrix implements Cloneable, java.io.Serializable {
       }
       return this;
    }
+
+   /**
+    @param vector a row-sized vector
+    @return A + v
+    */
+   public Matrix plus(double[] vector) {
+      Matrix X = new Matrix(m,n);
+      double[][] C = X.getArray();
+      for (int i = 0; i < m; i++) {
+         for (int j = 0; j < n; j++) {
+            C[i][j] = A[i][j] + vector[j];
+         }
+      }
+      return X;
+   }
+
+   /**
+    @param vector a row-sized vector
+    @return A + v
+    */
+   public Matrix plusEquals(double[] vector) {
+      for (int i = 0; i < m; i++) {
+         for (int j = 0; j < n; j++) {
+            A[i][j] += vector[j];
+         }
+      }
+      return this;
+   }
+
 
    /** C = A - B
    @param B    another matrix
@@ -761,6 +822,18 @@ public class Matrix implements Cloneable, java.io.Serializable {
       return X;
    }
 
+
+   public double[] times(double[] vector)
+   {
+      double[] X = new double[m];
+      for (int i = 0; i < m; i++) {
+         for (int j = 0; j < n; j++) {
+            X[i] += A[i][j] * vector[j];
+         }
+      }
+      return X;
+   }
+
    /** LU Decomposition
    @return     LUDecomposition
    @see LUDecomposition
@@ -869,6 +942,26 @@ public class Matrix implements Cloneable, java.io.Serializable {
       return t;
    }
 
+   /**
+    @return
+    */
+   public Matrix covariance() {
+      Matrix X = new Matrix(n, n);
+      double[] meanRow = mean();
+      for(int i = 0; i < m; i++) {
+         for(int j = i; j < n; j++) {
+            double c = 0;
+            for(int h = 0; h < m; h++) {
+               c +=  (A[h][i] - meanRow[i]) * (A[h][j] - meanRow[j]);
+            }
+            c /= m - 1;
+            X.set(i, j, c);
+            X.set(j, i, c);
+         }
+      }
+      return X;
+   }
+
    /** Generate matrix with random elements
    @param m    Number of rows.
    @param n    Number of colums.
@@ -954,7 +1047,7 @@ public class Matrix implements Cloneable, java.io.Serializable {
      * Note that is the matrix is to be read back in, you probably will want
      * to use a NumberFormat that is set to US Locale.
    @param output the output stream.
-   @param format A formatting object to format the matrix elements 
+   @param format A formatting object to format the matrix elements
    @param width  Column width.
    @see java.text.DecimalFormat#setDecimalFormatSymbols
    */
