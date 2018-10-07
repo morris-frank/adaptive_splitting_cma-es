@@ -868,7 +868,7 @@ public class Matrix implements Cloneable, java.io.Serializable {
    }
 
 
-   public double[] times(double[] vector)
+   public double[] times (double[] vector)
    {
       double[] X = new double[m];
       for (int i = 0; i < m; i++) {
@@ -1076,7 +1076,7 @@ public class Matrix implements Cloneable, java.io.Serializable {
       for (int i = 0; i < m; i++) {
          for (int j = 0; j < n; j++) {
             // String s = format.format(A[i][j]); // format the number
-            String s = String.format("%.2f", A[i][j]);
+            String s = String.format("%.2e", A[i][j]);
             int padding = Math.max(1,width-s.length()); // At _least_ 1 space
             for (int k = 0; k < padding; k++)
                output.print(' ');

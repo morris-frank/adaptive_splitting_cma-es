@@ -24,7 +24,8 @@ public class player28 implements ContestSubmission
     List<Population> tribes;
 
     // Parameters
-    int init_population_size;
+    int lambda;
+    int mu;
     double init_birthrate;
 
 	public player28()
@@ -58,18 +59,21 @@ public class player28 implements ContestSubmission
         if(!isMultimodal && !hasStructure && !isSeparable){
             // BentCigar
             int maxeval = 10000;
-            init_population_size = 100;
+            lambda = 100;
+            mu = 50;
             init_birthrate = 0.5D;
         }else if(isMultimodal && hasStructure && !isSeparable){
             // Schaffers
             int maxeval = 100000;
-            init_population_size = 100;
+            lambda = 100;
+            mu = 50;
             init_birthrate = 2D;
 
         }else if(isMultimodal && !hasStructure && !isSeparable){
             // Katsuura
             int maxeval = 1000000;
-            init_population_size = 100;
+            lambda = 100;
+            mu = 50;
             init_birthrate = 5D;
         }
     }
@@ -77,17 +81,15 @@ public class player28 implements ContestSubmission
 	public void run()
 	{
         evals = 0;
-        Population population = new Population(init_birthrate, 0.9);
-        population.addRandom(init_population_size, maxPos);
-        population.select(init_population_size);
+
+        Population population = new Population(lambda, mu);
+        population.initRandom();
         tribes.add(population);
+
         boolean somethinLeft = true;
         while(somethinLeft){
-            int numTribes = tribes.size();
-            for (int i = 0; i < numTribes; i++) {
-                somethinLeft = tribes.get(i).nextGeneration(init_population_size);
-                // tribes.get(i).report();
-            }
+            for (int i = 0; i < tribes.size(); i++)
+                somethinLeft = tribes.get(i).nextGeneration(lambda, mu);
             System.out.println(tribes.size());
         }
     }
@@ -112,8 +114,17 @@ public class player28 implements ContestSubmission
         return X;
     }
 
+    public double norm(double[] v)
+    {
+        double x = 0;
+        for (int i = 0; i < v.length; i++)
+            x += v[i] * v[i];
+        x = Math.sqrt(x);
+        return x;
+    }
 
-    public double mean(double[] v) {
+    public double mean(double[] v)
+    {
         double X = 0;
         for (int i = 0; i < v.length; i++) {
             X += v[i];
@@ -122,12 +133,37 @@ public class player28 implements ContestSubmission
         return X;
     }
 
-    public double max(double[] v) {
+    public double max(double[] v)
+    {
         double X = v[0];
         for (int i = 0; i < v.length; i++) {
             X = Math.max(X, v[i]);
         }
         return X;
+    }
+
+    public double[] normalize(double[] v)
+    {
+        double[] x = new double[v.length];
+        double sum = sum(v);
+        for (int i = 0; i < v.length; i++)
+            x[i] = v[i]/sum;
+        return x;
+    }
+
+    public double sum(double[] v)
+    {
+        double x = 0;
+        for (int i = 0; i < v.length; i++)
+            x += v[i];
+        return x;
+    }
+
+    public void print(double[] v)
+    {
+        for (int i = 0; i < v.length; i++)
+            System.out.format(" %1.2f", v[i]);
+        System.out.println();
     }
 
     public double[] rand(int length, double boundary)
@@ -141,61 +177,86 @@ public class player28 implements ContestSubmission
     public class Population
     {
         public List<Individual> individuals;
+
+        public int lambda;
+        public int mu;
+
         public Matrix C;
         public Matrix V;
         public Matrix D;
+        public Matrix invSqrtC;
+
         public double[] mean;
-        public double[] meanPath;
         public int generation;
+
         public double[] weights;
-        public double mu_weights;
+        public double mueff;
+        public double cc;
+        public double cs;
+        public double c1;
+        public double cmu;
+        public double damps;
+        public double chiN;
+
+        public double[] pc;
+        public double[] ps;
+
         public double sigma;
         public int id;
 
-        //Parameters
-        public double birthrate;
-        public double lr;
-
-        public Population(double birthrate, double lr)
+        public Population(int lambda, int mu)
         {
-            this.birthrate = birthrate;
-            this.lr = lr;
-            sigma = 1;
             generation = 1;
-            mean = new double[nDim];
-            meanPath = new double[nDim];
             individuals = new ArrayList<Individual>();
-            genWeights();
             id = nextTribe;
             nextTribe++;
+
+            this.lambda = lambda;
+            this.mu = mu;
+
+            sigma = 0.3 * maxPos;
+            C = Matrix.identity(nDim, nDim);
+            V = Matrix.identity(nDim, nDim);
+            D = Matrix.identity(nDim, nDim);
+            invSqrtC = Matrix.identity(nDim, nDim);
+            mean = new double[nDim];
+            pc = new double[nDim];
+            ps = new double[nDim];
+            genWeights();
+            resetParameters();
         }
 
         private void genWeights()
         {
-            int size = individuals.size();
-            weights = new double[size];
-            int sum = 0;
-            mu_weights = 0;
-            for (int i = 0; i < size; i++) {
-                weights[i] = size - i + 1;
-                sum += weights[i];
-            }
-            for (int i = 0; i < size; i++){
-                weights[i] /= sum;
-                mu_weights += weights[i] * weights[i];
-            }
-            mu_weights = 1.0D/mu_weights;
+            weights = new double[mu];
+            for (int i = 0; i < mu; i++)
+                weights[i] = Math.log((double)mu + 0.5) - Math.log(i+1);
+            weights = normalize(weights);
+            mueff = Math.pow(sum(weights), 2) / Math.pow(norm(weights), 2);
         }
 
-        public void addRandom(int n, double maxPos)
+        public void resetParameters()
         {
-            for(int i = 0; i < n; i++){
-                Individual individual = new Individual();
-                individual.position = rand(nDim, maxPos);
-                individual.fitness();
-                individuals.add(individual);
+            double N = (double)nDim;
+            cc = (4. + mueff/N) / (N + 4. + 2.*mueff/N);
+            cs = (mueff+2.) / (N+mueff+5.);
+            c1 = 2. / ((N+1.3)*(N+1.3)+mueff);
+            cmu = Math.min(1.-c1, 2. * (mueff-2.+1./mueff)/((N+2.)*(N+2.)+mueff));
+            damps = 1 + 2 * Math.max(0, Math.sqrt((mueff-1.)/(N+1.))-1) + cs;
+            chiN = Math.sqrt(N) * (1. - 1./(4.*N) + 1./(21.*N*N));
+        }
+
+        public void initRandom()
+        {
+            individuals = new ArrayList<Individual>();
+            for (int i = 0; i < lambda; i++) {
+                Individual I = new Individual();
+                I.position = rand(nDim, maxPos);
+                individuals.add(I);
             }
-            genWeights();
+            C = positions().covariance();
+            mean = new double[nDim];
+            updateCovariance();
         }
 
         public Matrix positions()
@@ -228,7 +289,7 @@ public class player28 implements ContestSubmission
             return fitness;
         }
 
-        public void newYear()
+        public void mature()
         {
             generation++;
             for(int i = 0; i < individuals.size(); i++)
@@ -238,28 +299,33 @@ public class player28 implements ContestSubmission
         public void report()
         {
             System.out.format(" #%d:%d", id, generation);
-            System.out.format(" | C-Cond: %6.2e", D.max()/D.minNonZero());
+            System.out.format(" | MAX-D: %6.2e", D.max());
             System.out.format(" | MAX-Fit: %6.2e", max(fitness()));
-            // System.out.format(" | AVG-Age: %6.2e", mean(ages()));
-            // System.out.format(" | SIGMA: %6.2e", sigma);
-            // System.out.format(" | MAX-MP: %6.2e", max(meanPath));
+            System.out.format(" | SIGMA: %6.2e", sigma);
+            // System.out.format(" | NORM P_s: %6.2e", norm(ps));
         }
 
-        public void reproduce(int n)
+        public void reproduction()
         {
-            Matrix sampled_positions = sample(V, D, n).timesEquals(sigma).plusEquals(mean);
-            for(int i = 0; i < n; i++){
-                Individual baby = new Individual();
-                for (int j = 0; j < nDim; j++) {
-                    baby.position[j] = sampled_positions.get(i, j);
-                }
-                baby.fitness();
+            individuals = new ArrayList<Individual>();
+            for(int i = 0; i < lambda; i++) {
+                reproduce();
                 if(evals == evaluations_limit_) break;
-                individuals.add(baby);
             }
         }
 
-        public void select(int mu)
+        public void reproduce()
+        {
+            Individual baby = new Individual();
+            baby.position = sample(V, D); // N(0,C)
+            for (int j = 0; j < nDim; j++)
+                baby.position[j] = baby.position[j] * sigma + mean[j]; // N(0,C) * sigma + m
+            // print(baby.position);
+            baby.fitness();
+            individuals.add(baby);
+        }
+
+        public void selection()
         {
             // Sort by fitness
             Collections.sort(individuals);
@@ -267,127 +333,131 @@ public class player28 implements ContestSubmission
             // only let fitesst babies survive
             while (individuals.size() > mu)
                 individuals.remove(individuals.size() - 1);
-
-            updateMean();
-            updateSigma();
         }
 
-        public void updateMean()
+        public void adapt()
         {
-            // double mueff = (double)size/4;
-            // double cc = 1 / ((Math.sqrt(nDim) + nDim)/2);
-            double csigma = 4.0D / nDim;
-            double dsigma = 1.0D;
+            double N = (double)nDim;
 
-            double[] new_mean = new double[nDim];
+            double[] old_mean = mean;
 
-            for(int d = 0; d < nDim; d++)
-                for(int i = 0; i < individuals.size(); i++)
-                    new_mean[d] += weights[i] * (individuals.get(i).position[d] - mean[d]);
+            mean = new double[nDim];
+            for (int i = 0; i < mu; i++)
+                for (int j = 0; j < nDim; j++)
+                    mean[j] += individuals.get(i).position[j] * weights[i];
 
-            double mu_weights_squared = Math.sqrt(mu_weights);
-            double invCSigma = Math.sqrt(1.0D - Math.pow(1.0D - csigma, 2));
-            for (int d = 0; d < nDim; d++) {
-                new_mean[d] += mean[d];
-                meanPath[d] *= (1.0D - csigma);
-                meanPath[d] += (new_mean[d] - mean[d]) / sigma * mu_weights_squared * invCSigma;
+            double[] mean_diff = new double[nDim];
+            for (int i = 0; i < nDim; i++)
+                mean_diff[i] = (mean[i] - old_mean[i]) / sigma;
+
+            double[] meanDiffC = invSqrtC.times(mean_diff);
+            for (int i = 0; i < nDim; i++)
+                ps[i] = (1.-cs)*ps[i] +  Math.sqrt(cs*(2.-cs)*mueff) * meanDiffC[i];
+
+            double hsig = (norm(ps) / Math.sqrt(1.-Math.pow(1.-cs, 2.*evals/lambda)) / chiN) < (1.4 + 2./(N+1.)) ? 1. : 0.;
+
+            for (int i = 0; i < nDim; i++)
+                pc[i] = (1.-cc)*pc[i] + hsig * Math.sqrt(cc*(2.-cc)*mueff) * mean_diff[i];
+
+            // Rank one update
+            double[][] pcMatV = new double[nDim][nDim];
+            for (int i = 0; i < nDim; i++)
+                for (int j = 0; j < nDim; j++)
+                    pcMatV[i][j] += pc[i] * pc[j];
+            Matrix pcMat = new Matrix(pcMatV, nDim, nDim);
+            pcMat.plusEquals(C.times(cc*(2.-cc)*(1.-hsig)));
+            pcMat.timesEquals(c1);
+
+
+            // Rank mu Update
+            double[][] arTmpV = new double[nDim][nDim];
+            for (int n = 0; n < mu; n++) {
+                double[] pos = individuals.get(n).position;
+                for (int i = 0; i < nDim; i++)
+                    for (int j = 0; j < nDim; j++)
+                        arTmpV[i][j] += weights[n] * pos[i] * pos[j];
             }
-            mean = new_mean;
+            Matrix arTmp = new Matrix(arTmpV, nDim, nDim);
+            arTmp.timesEquals(cmu);
+
+            C = C.times(1.-c1-cmu).plusEquals(pcMat).plusEquals(arTmp);
+
+            sigma *= Math.exp((cs/damps)*(norm(ps)/chiN - 1.));
         }
 
-        public void updateSigma()
-        {
-            // double mueff = (double)size/4;
-            // double csigma = (mueff + 2)/(nDim + mueff + 5);
-            // double dsigma = 1 + csigma + Math.max(0, Math.sqrt((mueff - 1)/(nDim +1))-1);
-            // sigma *= Math.exp(csigma / dsigma / 1000 * (meanPath.norm()/Math.sqrt(nDim) - 1));
-            // sigma *= Math.exp(csigma / dsigma * (meanPath.norm()/Math.sqrt(nDim) - 1));
-            // double csigma = 4.0D / nDim;
-            // double dsigma = 1.0D;
-            // sigma *= Math.exp(csigma / dsigma * ((meanPath.norm()/Math.sqrt(nDim)) - 1));
-            sigma *= 0.999;
-        }
+        // public void split()
+        // {
+        //     if (generation < 10) return;
+
+        //     // Finding biggest eigenvalue and index of eigenvector
+        //     double maxE = 0;
+        //     int maxEID = 0;
+        //     for (int i = 0; i < nDim; i++)
+        //         if (D.get(i,i) > maxE) {
+        //             maxE = D.get(i,i);
+        //             maxEID = i;
+        //         }
+
+        //     // Conditioning of the current covariance matrix
+        //     double condition =  maxE / D.minNonZero();
+
+        //     if (condition < 6) return;
+
+        //     int lambda = individuals.size();
+        //     Population newTribe = new Population(init_birthrate, 0.9);
+
+        //     ListIterator<Individual> indiIt = individuals.listIterator();
+        //     while(indiIt.hasNext()) {
+        //         Individual I = indiIt.next();
+
+        //         double strength = 0;
+        //         for (int i = 0; i < nDim; i++)
+        //             strength += (I.position[i] - mean[i]) * V.get(maxEID, i);
+
+        //         if(strength > 0 || (strength == 0 && rnd_.nextBoolean())) {
+        //             newTribe.individuals.add(I);
+        //             indiIt.remove();
+        //         }
+        //     }
+
+        //     newTribe.resetTo(lambda);
+        //     tribes.add(newTribe);
+        //     resetTo(lambda);
+        // }
+
+        // public void resetTo(int lambda)
+        // {
+        //     generation = 1;
+        //     mean = positions().mean();
+        //     updateCovariance();
+        //     if(individuals.size() < lambda)
+        //         reproduce(lambda - individuals.size());
+        //     genWeights();
+        // }
 
         public void updateCovariance()
         {
-            if(generation == 1)
-                C = positions().covariance();
-            else
-                C = C.times(1 - lr).plus(positions().covariance().times(lr));
-            EigenvalueDecomposition eigC = C.eig();
-            V = eigC.getV();
-            D = eigC.getD();
-        }
-
-        public void killElderly(int maxAge)
-        {
-            ListIterator<Individual> indiIt = individuals.listIterator();
-            while(indiIt.hasNext()) {
-                Individual individual = indiIt.next();
-                if(individual.age > maxAge) {
-                    indiIt.remove();
-                }
-            }
-        }
-
-        public void split()
-        {
-            if (generation < 10) return;
-
-            // Finding biggest eigenvalue and index of eigenvector
-            double maxE = 0;
-            int maxEID = 0;
             for (int i = 0; i < nDim; i++)
-                if (D.get(i,i) > maxE) {
-                    maxE = D.get(i,i);
-                    maxEID = i;
-                }
-
-            // Conditioning of the current covariance matrix
-            double condition =  maxE / D.minNonZero();
-
-            if (condition < 6) return;
-
-            int lambda = individuals.size();
-            Population newTribe = new Population(init_birthrate, 0.9);
-
-            ListIterator<Individual> indiIt = individuals.listIterator();
-            while(indiIt.hasNext()) {
-                Individual I = indiIt.next();
-
-                double strength = 0;
-                for (int i = 0; i < nDim; i++)
-                    strength += (I.position[i] - mean[i]) * V.get(maxEID, i);
-
-                if(strength > 0 || (strength == 0 && rnd_.nextBoolean())) {
-                    newTribe.individuals.add(I);
-                    indiIt.remove();
-                }
-            }
-
-            newTribe.resetTo(lambda);
-            tribes.add(newTribe);
-            resetTo(lambda);
+                for (int j = 0; j < i; j++)
+                        C.set(i,j,C.get(j,i));
+            EigenvalueDecomposition eig = new EigenvalueDecomposition(C);
+            V = eig.getV();
+            D = eig.getD();
+            double[][] invSTD = new double[nDim][nDim];
+            for (int i = 0; i < nDim; i++)
+                invSTD[i][i] = 1./Math.sqrt(Math.max(0,D.get(i,i)));
+            invSqrtC = new Matrix(invSTD, nDim, nDim);
+            invSqrtC = V.times(invSqrtC.times(V.transpose()));
         }
 
-        public void resetTo(int lambda)
+        public boolean nextGeneration(int lambda, int mu)
         {
-            generation = 1;
-            mean = positions().mean();
+            reproduction();
+            selection();
+            adapt();
             updateCovariance();
-            if(individuals.size() < lambda)
-                reproduce(lambda - individuals.size());
-            genWeights();
-        }
-
-        public boolean nextGeneration(int mu)
-        {
-            updateCovariance();
-            split();
-            reproduce((int)(individuals.size() * birthrate));
-            // killElderly(100);
-            select(mu);
-            newYear();
+            report();
+            mature();
             return evals < evaluations_limit_;
         }
     }
