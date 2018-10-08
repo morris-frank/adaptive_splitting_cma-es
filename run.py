@@ -8,6 +8,8 @@ import random
 import pandas as pd
 from tqdm import tqdm
 
+sns.set_style("whitegrid")
+
 functions = ['BentCigarFunction', 'SchaffersEvaluation', 'KatsuuraEvaluation']
 command = 'java -Dlambda={lambda} -jar testrun.jar -submission=player28 -evaluation={func} -seed={seed}'
 
@@ -30,8 +32,11 @@ def single_run(function, seed, _lambda):
             break
         sline = line.split()
         # generation = int(line[4:9])
-        fitnesses.append(float(sline[5]))
-        sigmas.append(float(sline[8]))
+        try:
+            fitnesses.append(float(sline[5]))
+            sigmas.append(float(sline[8]))
+        except ValueError as e:
+            break
     return fitnesses, sigmas
 
 def sign_single_run(function, _lambda):
@@ -39,8 +44,8 @@ def sign_single_run(function, _lambda):
     sigmas = []
     maxgens = []
     maxfits = []
-    for _ in tqdm(range(0, 5), desc="{}".format(_lambda)):
-        seed = random.randint(1,100)
+    for _ in tqdm(range(0, 30), desc="{}".format(_lambda), leave=False):
+        seed = random.randint(1,10000000)
         _fitnesses, _sigmas = single_run(function, seed, _lambda)
         maxfits.append(max(_fitnesses))
     return np.mean(maxfits)
@@ -53,15 +58,16 @@ def sign_single_run(function, _lambda):
 
 def lambda_test(function):
     maxfits = []
-    for _lambda in range(90, 200, 20):
+    lambda_range = range(10, 200, 5)
+    for _lambda in tqdm(lambda_range, desc="{}".format(function)):
         maxfits.append(sign_single_run(function, _lambda))
-    plt.scatter(range(90, 200, 20), maxfits)
+    plt.scatter(lambda_range, maxfits, c="g", marker="X")
     plt.savefig('{}_maxfits_mean.png'.format(function), dpi=300)
 
 
 
 def main():
-    lambda_test(functions[2])
+    lambda_test(functions[0])
 
 if __name__ == '__main__':
     main()
