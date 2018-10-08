@@ -486,7 +486,7 @@ public class player28 implements ContestSubmission
             if (verbose)
                 report();
             mature();
-            return (sigma < 90.) && (max(fitness()) > 0.) && (evals < evaluations_limit_);
+            return (sigma < 90.) && (D.max() > 0.) && (evals < evaluations_limit_);
         }
     }
 
