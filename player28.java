@@ -26,6 +26,7 @@ public class player28 implements ContestSubmission
     // Parameters
     int lambda;
     int mu;
+    boolean verbose;
 
 	public player28()
 	{
@@ -55,27 +56,27 @@ public class player28 implements ContestSubmission
         boolean hasStructure = Boolean.parseBoolean(props.getProperty("Regular"));
         boolean isSeparable = Boolean.parseBoolean(props.getProperty("Separable"));
 
-        // For python:
-        // lambda = Integer.parseInt(System.getProperty("lambda"));
-        // mu = lambda/2;
 
+        verbose = Boolean.parseBoolean(System.getProperty("verbose"));
+
+        // BentCigar
         if(!isMultimodal && !hasStructure && !isSeparable){
-            // BentCigar
             int maxeval = 10000;
-            lambda = 100;
-            mu = lambda/2;
+            lambda = 11;
+        // Schaffers
         }else if(isMultimodal && hasStructure && !isSeparable){
-            // Schaffers
             int maxeval = 100000;
             lambda = 100;
-            mu = lambda/2;
 
+        // Katsuura
         }else if(isMultimodal && !hasStructure && !isSeparable){
-            // Katsuura
             int maxeval = 1000000;
             lambda = 200;
-            mu = lambda/2;
         }
+        if(System.getProperty("lambda") != null){
+            lambda = Integer.parseInt(System.getProperty("lambda"));
+        }
+        mu = lambda/2;
     }
 
 	public void run()
@@ -481,7 +482,8 @@ public class player28 implements ContestSubmission
             selection();
             if (evals < evaluations_limit_)
                 adapt();
-            // report();
+            if (verbose)
+                report();
             mature();
             return (sigma < 90.) && (max(fitness()) > 0.) && (evals < evaluations_limit_);
         }

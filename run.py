@@ -23,7 +23,7 @@ def padded_sum(a):
 def single_run(function, seed, _lambda):
     fitnesses = []
     sigmas = []
-    result = subprocess.run(['java', '-Dlambda={}'.format(_lambda), '-jar', 'testrun.jar', '-submission=player28', '-evaluation={}'.format(function), '-seed={}'.format(seed)], stdout=PIPE, stderr=PIPE, encoding='UTF-8')
+    result = subprocess.run(['java', '-Dverbose=true', '-Dlambda={}'.format(_lambda), '-jar', 'testrun.jar', '-submission=player28', '-evaluation={}'.format(function), '-seed={}'.format(seed)], stdout=PIPE, stderr=PIPE, encoding='UTF-8')
     for line in result.stdout.split('\n'):
         line = line.rstrip();
         if line[:5] == "Score":
