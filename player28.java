@@ -26,7 +26,6 @@ public class player28 implements ContestSubmission
     // Parameters
     int lambda;
     int mu;
-    double init_birthrate;
 
 	public player28()
 	{
@@ -56,25 +55,25 @@ public class player28 implements ContestSubmission
         boolean hasStructure = Boolean.parseBoolean(props.getProperty("Regular"));
         boolean isSeparable = Boolean.parseBoolean(props.getProperty("Separable"));
 
+        lambda = Integer.parseInt(System.getProperty("lambda"));
+        mu = lambda/2;
+
         if(!isMultimodal && !hasStructure && !isSeparable){
             // BentCigar
             int maxeval = 10000;
-            lambda = 100;
-            mu = 50;
-            init_birthrate = 0.5D;
+            // lambda = 10;
+            // mu = lambda/2;
         }else if(isMultimodal && hasStructure && !isSeparable){
             // Schaffers
             int maxeval = 100000;
-            lambda = 100;
-            mu = 50;
-            init_birthrate = 2D;
+            // lambda = 100;
+            // mu = lambda/2;
 
         }else if(isMultimodal && !hasStructure && !isSeparable){
             // Katsuura
             int maxeval = 1000000;
-            lambda = 100;
-            mu = 50;
-            init_birthrate = 5D;
+            // lambda = 40;
+            // mu = lambda/2;
         }
     }
 
@@ -90,7 +89,6 @@ public class player28 implements ContestSubmission
         while(somethinLeft){
             for (int i = 0; i < tribes.size(); i++)
                 somethinLeft = tribes.get(i).nextGeneration(lambda, mu);
-            System.out.println(tribes.size());
         }
     }
 
@@ -240,10 +238,12 @@ public class player28 implements ContestSubmission
             double N = (double)nDim;
             cc = (4. + mueff/N) / (N + 4. + 2.*mueff/N);
             cs = (mueff+2.) / (N+mueff+5.);
-            c1 = 2. / ((N+1.3)*(N+1.3)+mueff);
-            cmu = Math.min(1.-c1, 2. * (mueff-2.+1./mueff)/((N+2.)*(N+2.)+mueff));
-            damps = 1 + 2 * Math.max(0, Math.sqrt((mueff-1.)/(N+1.))-1) + cs;
-            chiN = Math.sqrt(N) * (1. - 1./(4.*N) + 1./(21.*N*N));
+            c1 = 2. / (Math.pow(N+1.3, 2)+mueff);
+            cmu = Math.min(1.-c1, 2. * (mueff-2.+1./mueff)/(Math.pow(N+2., 2)+mueff));
+            // damps = 1. + 2 * Math.max(0, Math.sqrt((mueff-1.)/(N+1.))-1) + cs;
+            damps = 2. * mueff/(double)lambda + 0.3 + cs;
+            // chiN = Math.sqrt(N) * (1. - 1./(4.*N) + 1./(21.*N*N));
+            chiN = 1. - 1./(4.*N) + 1./(21.*N*N);
         }
 
         public void initRandom()
@@ -298,11 +298,11 @@ public class player28 implements ContestSubmission
 
         public void report()
         {
-            System.out.format(" #%d:%d", id, generation);
-            System.out.format(" | MAX-D: %6.2e", D.max());
-            System.out.format(" | MAX-Fit: %6.2e", max(fitness()));
-            System.out.format(" | SIGMA: %6.2e", sigma);
-            // System.out.format(" | NORM P_s: %6.2e", norm(ps));
+            System.out.format(" #%d : %d", id, generation);
+            // System.out.format(" | MAX-D: %6.2e", D.max());
+            System.out.format(" | MAXFit: %6.2e", max(fitness()));
+            System.out.format(" | SIGMA: %3.2f", sigma);
+            System.out.println();
         }
 
         public void reproduction()
@@ -320,7 +320,6 @@ public class player28 implements ContestSubmission
             baby.position = sample(V, D); // N(0,C)
             for (int j = 0; j < nDim; j++)
                 baby.position[j] = baby.position[j] * sigma + mean[j]; // N(0,C) * sigma + m
-            // print(baby.position);
             baby.fitness();
             individuals.add(baby);
         }
@@ -346,6 +345,7 @@ public class player28 implements ContestSubmission
                 for (int j = 0; j < nDim; j++)
                     mean[j] += individuals.get(i).position[j] * weights[i];
 
+            // Normalized mean difference
             double[] mean_diff = new double[nDim];
             for (int i = 0; i < nDim; i++)
                 mean_diff[i] = (mean[i] - old_mean[i]) / sigma;
@@ -354,35 +354,59 @@ public class player28 implements ContestSubmission
             for (int i = 0; i < nDim; i++)
                 ps[i] = (1.-cs)*ps[i] +  Math.sqrt(cs*(2.-cs)*mueff) * meanDiffC[i];
 
-            double hsig = (norm(ps) / Math.sqrt(1.-Math.pow(1.-cs, 2.*evals/lambda)) / chiN) < (1.4 + 2./(N+1.)) ? 1. : 0.;
+            // General step-size adaption
+            double cn = cs/damps;
+            double sum_squared_ps = Math.pow(norm(ps), 2.);
+            sigma *= Math.exp(Math.min(1, cn * (sum_squared_ps / N - 1.)/2));
 
-            for (int i = 0; i < nDim; i++)
-                pc[i] = (1.-cc)*pc[i] + hsig * Math.sqrt(cc*(2.-cc)*mueff) * mean_diff[i];
+            // double hsig = (norm(ps) / Math.sqrt(1.-Math.pow(1.-cs, 2.*evals/lambda)) / chiN) < (1.4 + 2./(N+1.)) ? 1. : 0.;
+            double hsig = (Math.pow(norm(ps),2.)/N  / (1. - Math.pow(1.-cs, 2.*(double)evals/(double)lambda))) < (2. + 4./(N+1.)) ? 1. : 0.;
 
             // Rank one update
-            double[][] pcMatV = new double[nDim][nDim];
+            for (int i = 0; i < nDim; i++)
+                pc[i] = (1.-cc)*pc[i] + hsig * Math.sqrt(cc*(2.-cc)*mueff) * mean_diff[i];
+            double c1a = c1 * (1. - (1.-hsig*hsig) * cc * (2.-cc));
+            C.timesEquals(1.-c1a-cmu * sum(weights));
+            double[][] pcOuterProductValues = new double[nDim][nDim];
             for (int i = 0; i < nDim; i++)
                 for (int j = 0; j < nDim; j++)
-                    pcMatV[i][j] += pc[i] * pc[j];
-            Matrix pcMat = new Matrix(pcMatV, nDim, nDim);
-            pcMat.plusEquals(C.times(cc*(2.-cc)*(1.-hsig)));
-            pcMat.timesEquals(c1);
+                    pcOuterProductValues[i][j] = c1 * pc[i] * pc[j];
+            Matrix pcOuterProduct = new Matrix(pcOuterProductValues, nDim, nDim);
+            C.plusEquals(pcOuterProduct);
 
 
             // Rank mu Update
-            double[][] arTmpV = new double[nDim][nDim];
             for (int n = 0; n < mu; n++) {
                 double[] pos = individuals.get(n).position;
+                double[][] posOuterProductValues = new double[nDim][nDim];
                 for (int i = 0; i < nDim; i++)
                     for (int j = 0; j < nDim; j++)
-                        arTmpV[i][j] += weights[n] * pos[i] * pos[j];
+                        posOuterProductValues[i][j] = weights[n] * cmu * (pos[i] - old_mean[i]) * (pos[j] - old_mean[j]);
+                Matrix posOuterProduct = new Matrix(posOuterProductValues, nDim, nDim);
+                C.plusEquals(posOuterProduct);
             }
-            Matrix arTmp = new Matrix(arTmpV, nDim, nDim);
-            arTmp.timesEquals(cmu);
 
-            C = C.times(1.-c1-cmu).plusEquals(pcMat).plusEquals(arTmp);
+            // Covariance adaption
+            // C = positions().covariance();
+            for (int i = 0; i < nDim; i++)
+                for (int j = 0; j < i; j++)
+                        C.set(i,j,C.get(j,i));
 
-            sigma *= Math.exp((cs/damps)*(norm(ps)/chiN - 1.));
+            // Decompose convariance matrix.
+            EigenvalueDecomposition eig = new EigenvalueDecomposition(C);
+            V = eig.getV();
+            D = eig.getD();
+            double[][] invSTD = new double[nDim][nDim];
+            for (int i = 0; i < nDim; i++) {
+                double e = D.get(i,i);
+                if(e > 0){
+                    invSTD[i][i] = 1./Math.sqrt(e);
+                }else{
+                    invSTD[i][i] = 0.;
+                }
+            }
+            invSqrtC = new Matrix(invSTD, nDim, nDim);
+            invSqrtC = V.times(invSqrtC.times(V.transpose()));
         }
 
         // public void split()
@@ -404,7 +428,7 @@ public class player28 implements ContestSubmission
         //     if (condition < 6) return;
 
         //     int lambda = individuals.size();
-        //     Population newTribe = new Population(init_birthrate, 0.9);
+        //     Population newTribe = new Population();
 
         //     ListIterator<Individual> indiIt = individuals.listIterator();
         //     while(indiIt.hasNext()) {
@@ -454,11 +478,11 @@ public class player28 implements ContestSubmission
         {
             reproduction();
             selection();
-            adapt();
-            updateCovariance();
+            if (evals < evaluations_limit_)
+                adapt();
             report();
             mature();
-            return evals < evaluations_limit_;
+            return (sigma < 90.) && (max(fitness()) > 0.) && (evals < evaluations_limit_);
         }
     }
 
