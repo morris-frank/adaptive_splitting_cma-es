@@ -302,8 +302,8 @@ public class player28 implements ContestSubmission
         {
             System.out.format(" #%d : %d", id, generation);
             // System.out.format(" | MAX-D: %6.2e", D.max());
-            System.out.format(" | MAXFit: %6.2e", max(fitness()));
-            System.out.format(" | SIGMA: %3.2f", sigma);
+            System.out.format(" | MAXFit: %.10f", max(fitness()));
+            System.out.format(" | SIGMA: %.10f", sigma);
             System.out.println();
         }
 
@@ -482,6 +482,7 @@ public class player28 implements ContestSubmission
             selection();
             if (evals < evaluations_limit_)
                 adapt();
+            evaluation_.evaluate(mean);evals++;
             if (verbose)
                 report();
             mature();
