@@ -22,6 +22,7 @@ public class player28 implements ContestSubmission
     int evals;
     int nextTribe;
     List<Population> tribes;
+    double maxFitness;
 
     // Parameters
     int lambda;
@@ -31,7 +32,6 @@ public class player28 implements ContestSubmission
 	public player28()
 	{
         rnd_ = new Random();
-        nextTribe = 0;
         tribes = new ArrayList<Population>();
 	}
 
@@ -66,17 +66,25 @@ public class player28 implements ContestSubmission
         // Schaffers
         }else if(isMultimodal && hasStructure && !isSeparable){
             int maxeval = 100000;
-            lambda = 100;
+            lambda = 75;
 
         // Katsuura
         }else if(isMultimodal && !hasStructure && !isSeparable){
             int maxeval = 1000000;
-            lambda = 200;
+            lambda = 195;
         }
         if(System.getProperty("lambda") != null){
             lambda = Integer.parseInt(System.getProperty("lambda"));
         }
         mu = lambda/2;
+    }
+
+    public double eval(double[] point)
+    {
+        evals++;
+        double fitness = (double) evaluation_.evaluate(point);
+        maxFitness = Math.max(fitness, maxFitness);
+        return fitness;
     }
 
 	public void run()
@@ -204,26 +212,20 @@ public class player28 implements ContestSubmission
         public double sigma;
         public int id;
 
+        public boolean restart;
+
         public Population(int lambda, int mu)
         {
             generation = 1;
             individuals = new ArrayList<Individual>();
             id = nextTribe;
             nextTribe++;
+            restart = true;
 
             this.lambda = lambda;
             this.mu = mu;
 
-            sigma = 0.3 * maxPos;
-            C = Matrix.identity(nDim, nDim);
-            V = Matrix.identity(nDim, nDim);
-            D = Matrix.identity(nDim, nDim);
-            invSqrtC = Matrix.identity(nDim, nDim);
-            mean = new double[nDim];
-            pc = new double[nDim];
-            ps = new double[nDim];
-            genWeights();
-            resetParameters();
+            reset();
         }
 
         private void genWeights()
@@ -235,8 +237,20 @@ public class player28 implements ContestSubmission
             mueff = Math.pow(sum(weights), 2) / Math.pow(norm(weights), 2);
         }
 
-        public void resetParameters()
+        public void reset()
         {
+
+            sigma = 0.3 * maxPos;
+            C = Matrix.identity(nDim, nDim);
+            V = Matrix.identity(nDim, nDim);
+            D = Matrix.identity(nDim, nDim);
+            invSqrtC = Matrix.identity(nDim, nDim);
+            mean = new double[nDim];
+            pc = new double[nDim];
+            ps = new double[nDim];
+
+            genWeights();
+
             double N = (double)nDim;
             cc = (4. + mueff/N) / (N + 4. + 2.*mueff/N);
             cs = (mueff+2.) / (N+mueff+5.);
@@ -301,9 +315,10 @@ public class player28 implements ContestSubmission
         public void report()
         {
             System.out.format(" #%d : %d", id, generation);
-            // System.out.format(" | MAX-D: %6.2e", D.max());
             System.out.format(" | MAXFit: %.10f", max(fitness()));
             System.out.format(" | SIGMA: %.10f", sigma);
+            System.out.format(" | Conditioning: %6.2e", D.max()/D.minNonZero());
+            System.out.format(" | normPS: %.4f", norm(ps));
             System.out.println();
         }
 
@@ -353,17 +368,27 @@ public class player28 implements ContestSubmission
                 mean_diff[i] = (mean[i] - old_mean[i]) / sigma;
 
             double[] meanDiffC = invSqrtC.times(mean_diff);
-            for (int i = 0; i < nDim; i++)
+            for (int i = 0; i < nDim; i++){
                 ps[i] = (1.-cs)*ps[i] +  Math.sqrt(cs*(2.-cs)*mueff) * meanDiffC[i];
+            }
 
             // General step-size adaption
             double cn = cs/damps;
-            double sum_squared_ps = Math.pow(norm(ps), 2.);
-            sigma *= Math.exp(Math.min(1, cn * (sum_squared_ps / N - 1.)/2));
+            // double sigmafac = Math.min(1., cn/2. * (Math.pow(norm(ps), 2.) / N - 1.)); // tutorial: eq.33
+            double sigmafac = cn * (norm(ps) / (Math.sqrt(N) + 1./N) - 1); // tutorial: eq.32
+            // double sigmafac = Math.min(1., cn * (norm(ps)/chiN - 1.)); // From paper
+            // sigma = 4. / (1 + Math.exp(-sigmafac * (sigma*sigmafac - sigma)));
+            sigma *= Math.exp(Math.min(1., sigmafac));
+
+            // if(individuals.get(1).fitness == individuals.get((int)(0.7 * mu)).fitness){
+            //     sigma *= Math.exp(0.2 + cn);
+            //     System.out.println("ESCAPING FLAT LANDSCAPES!");
+            // }
 
             // double hsig = (norm(ps) / Math.sqrt(1.-Math.pow(1.-cs, 2.*evals/lambda)) / chiN) < (1.4 + 2./(N+1.)) ? 1. : 0.;
             double hsig = (Math.pow(norm(ps),2.)/N  / (1. - Math.pow(1.-cs, 2.*(double)evals/(double)lambda))) < (2. + 4./(N+1.)) ? 1. : 0.;
 
+            // Covariance adaption
             // Rank one update
             for (int i = 0; i < nDim; i++)
                 pc[i] = (1.-cc)*pc[i] + hsig * Math.sqrt(cc*(2.-cc)*mueff) * mean_diff[i];
@@ -388,8 +413,6 @@ public class player28 implements ContestSubmission
                 C.plusEquals(posOuterProduct);
             }
 
-            // Covariance adaption
-            // C = positions().covariance();
             for (int i = 0; i < nDim; i++)
                 for (int j = 0; j < i; j++)
                         C.set(i,j,C.get(j,i));
@@ -399,14 +422,8 @@ public class player28 implements ContestSubmission
             V = eig.getV();
             D = eig.getD();
             double[][] invSTD = new double[nDim][nDim];
-            for (int i = 0; i < nDim; i++) {
-                double e = D.get(i,i);
-                if(e > 0){
-                    invSTD[i][i] = 1./Math.sqrt(e);
-                }else{
-                    invSTD[i][i] = 0.;
-                }
-            }
+            for (int i = 0; i < nDim; i++)
+                invSTD[i][i] = Math.max(0., 1./Math.sqrt(D.get(i,i)));
             invSqrtC = new Matrix(invSTD, nDim, nDim);
             invSqrtC = V.times(invSqrtC.times(V.transpose()));
         }
@@ -482,11 +499,18 @@ public class player28 implements ContestSubmission
             selection();
             if (evals < evaluations_limit_)
                 adapt();
-            evaluation_.evaluate(mean);evals++;
+            eval(mean);
             if (verbose)
                 report();
             mature();
-            return (sigma < 90.) && (D.max() > 0.) && (evals < evaluations_limit_);
+            if(restart && maxFitness > 7. && max(fitness()) < 0.1){
+                reset();
+                initRandom();
+                restart = false;
+            }else if(!restart && max(fitness()) > 8.){
+                restart = true;
+            }
+            return (D.max() > 0.) && (evals < evaluations_limit_) && (maxFitness < 10.0);
         }
     }
 
@@ -506,8 +530,7 @@ public class player28 implements ContestSubmission
         public double fitness()
         {
             if(fitness == 0){
-                evals++;
-                fitness = (double) evaluation_.evaluate(position);
+                fitness = eval(position);
             }
             return fitness;
         }
