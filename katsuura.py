@@ -12,7 +12,6 @@ sns.set_style("whitegrid")
 
 functions = ['BentCigarFunction', 'SchaffersEvaluation', 'KatsuuraEvaluation']
 command = 'java -Dlambda={lambda} -jar testrun.jar -submission=player28 -evaluation={func} -seed={seed}'
-
 def padded_sum(a):
     max_len = len(max(a, key=len))
     nL = len(a)
@@ -20,55 +19,57 @@ def padded_sum(a):
         for _ in range(max_len - len(a[i])):
             a[i] = a[i] + [a[i][-1]]
     a = np.array(a).sum(axis=0) / nL
-    return a
-
+    return pd.DataFrame(a)
 def single_run(function, seed, _lambda):
     fitnesses = []
+    cond = []
     sigmas = []
+    normps = []
     result = subprocess.run(['java', '-Dverbose=true', '-Dlambda={}'.format(_lambda), '-jar', 'testrun.jar', '-submission=player28', '-evaluation={}'.format(function), '-seed={}'.format(seed)], stdout=PIPE, stderr=PIPE, encoding='UTF-8')
     for line in result.stdout.split('\n'):
         line = line.rstrip();
         if line[:5] == "Score":
             break
         sline = line.split()
-        if len(sline) < 8:
+        if len(sline) < 14:
             break
         try:
             fitnesses.append(float(sline[5]))
             sigmas.append(float(sline[8]))
+            cond.append(float(sline[11]))
+            normps.append(float(sline[14]))
         except ValueError as e:
             break
-    return fitnesses, sigmas
+    return fitnesses, sigmas, normps, cond
 
-def sign_single_run(function, _lambda):
-    fitnesses = []
-    sigmas = []
-    maxgens = []
-    maxfits = []
-    for _ in tqdm(range(0, 30), desc="{}".format(_lambda), leave=False):
-        seed = random.randint(1,10000000)
-        _fitnesses, _sigmas = single_run(function, seed, _lambda)
-        maxfits.append(max(_fitnesses))
-    return np.mean(maxfits)
-    #     fitnesses.append(_fitnesses)
-    #     sigmas.append(_sigmas)
-    # fitnesses = padded_sum(fitnesses)
-    # sigmas = padded_sum(sigmas)
-    # plt.plot(sigmas)
-    # plt.show()
+function = functions[2]
+_lambda = 195
+fitnesses = []
+sigmas = []
+normps = []
+cond = []
+gens = []
+seeds = []
+for _ in tqdm(range(0, 10), desc="{}".format(_lambda), leave=False):
+    seed = random.randint(1,10000000)
+    # seed = 34032434
+    _fitnesses, _sigmas, _normps, _cond = single_run(function, seed, _lambda)
+    fitnesses.append(_fitnesses)
+    sigmas.append(_sigmas)
+    normps.append(_normps)
+    cond.append(_cond)
+    gens.append(len(_fitnesses))
+    seeds.append(seed)
+fitnesses = padded_sum(fitnesses)
+sigmas = padded_sum(sigmas)
+normps = padded_sum(normps)
+cond = padded_sum(cond)
+gens = np.array(gens)
+seeds = np.array(seeds)
 
-def lambda_test(function):
-    maxfits = []
-    lambda_range = range(200, 1000, 100)
-    for _lambda in tqdm(lambda_range, desc="{}".format(function)):
-        maxfits.append(sign_single_run(function, _lambda))
-    plt.scatter(lambda_range, maxfits, c="g", marker="X")
-    plt.savefig('{}_maxfits_mean.png'.format(function), dpi=300)
-
-
-
-def main():
-    lambda_test(functions[2])
-
-if __name__ == '__main__':
-    main()
+fig, ax = plt.subplots(nrows=2, ncols=2)
+fitnesses.plot(ax=ax[0,0], title="Maximum Fitness")
+sigmas.plot(ax=ax[0,1], title="Step size")
+normps.plot(ax=ax[1,0], title="Norm of P_sigma")
+cond.plot(ax=ax[1,1], title="Conditioning")
+plt.show()
