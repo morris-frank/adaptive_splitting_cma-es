@@ -559,11 +559,12 @@ public class player28 implements ContestSubmission
 
         public void restart()
         {
-            if(!restart && max(fitness()) > 0.1){
+            if(!restart && individuals.get(0).fitness() > 0.1){
                 restart = true;
                 return;
             }
-            if(restart && sigma > 5.){
+            double FlatFit = individuals.get(0).fitness - individuals.get((int)(0.1 * (float)individuals.size())).fitness;
+            if(restart && FlatFit < 1e-10){
                 lambda += (int)((double)lambda * 0.1);
                 mu = lambda/2;
                 reset();
@@ -577,7 +578,7 @@ public class player28 implements ContestSubmission
             System.out.format("%d,", id);
             System.out.format("%d,", evals);
 
-            System.out.format("%.10f,", max(fitness()));
+            System.out.format("%.10f,", individuals.get(0).fitness());
             System.out.format("%.10f,", sigma);
             System.out.format("%6.2e,", D.max());
             System.out.format("%d", lambda);
