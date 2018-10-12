@@ -102,7 +102,7 @@ public class player28 implements ContestSubmission
             for(Population tribe : tribes){
                 tribe.reproduction();
                 tribe.selection();
-                if (evals < evaluations_limit_)
+                if (evals < evaluations_limit_ - 1)
                     tribe.adapt();
                 eval(tribe.mean);
                 if (verbose)
@@ -350,7 +350,7 @@ public class player28 implements ContestSubmission
             individuals = new ArrayList<Individual>();
             for(int i = 0; i < lambda; i++) {
                 reproduce();
-                if(evals == evaluations_limit_) break;
+                if(evals == evaluations_limit_ - 1) break;
             }
         }
 
