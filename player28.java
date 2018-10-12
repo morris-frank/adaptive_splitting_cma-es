@@ -66,12 +66,14 @@ public class player28 implements ContestSubmission
         // Schaffers
         }else if(isMultimodal && hasStructure && !isSeparable){
             int maxeval = 100000;
-            lambda = 75;
+            // lambda = 75;
+            lambda = 20;
 
         // Katsuura
         }else if(isMultimodal && !hasStructure && !isSeparable){
             int maxeval = 1000000;
-            lambda = 195;
+            // lambda = 195;
+            lambda = 100;
         }
         if(System.getProperty("lambda") != null){
             lambda = Integer.parseInt(System.getProperty("lambda"));
@@ -95,10 +97,24 @@ public class player28 implements ContestSubmission
         population.initRandom();
         tribes.add(population);
 
-        boolean somethinLeft = true;
-        while(somethinLeft){
-            for (int i = 0; i < tribes.size(); i++)
-                somethinLeft = tribes.get(i).nextGeneration(lambda, mu);
+        boolean notFinished = true;
+        while(notFinished){
+            for(Population tribe : tribes){
+                tribe.reproduction();
+                tribe.selection();
+                if (evals < evaluations_limit_)
+                    tribe.adapt();
+                eval(tribe.mean);
+                if (verbose)
+                    tribe.report();
+                tribe.mature();
+                // tribe.split();
+                tribe.restart();
+                if(maxFitness == 10.0 || evals == evaluations_limit_){
+                    notFinished = false;
+                    break;
+                }
+            }
         }
     }
 
@@ -329,16 +345,6 @@ public class player28 implements ContestSubmission
                 individuals.get(i).age++;
         }
 
-        public void report()
-        {
-            System.out.format(" #%d : %d", id, generation);
-            System.out.format(" | MAXFit: %.10f", max(fitness()));
-            System.out.format(" | SIGMA: %.10f", sigma);
-            System.out.format(" | Conditioning: %6.2e", D.max()/D.minNonZero());
-            System.out.format(" | normPS: %.4f", norm(ps));
-            System.out.println();
-        }
-
         public void reproduction()
         {
             individuals = new ArrayList<Individual>();
@@ -374,6 +380,30 @@ public class player28 implements ContestSubmission
             for (int i = 0; i < individuals.size(); i++)
                 for (int j = 0; j < nDim; j++)
                     mean[j] += individuals.get(i).position[j] * weights[i];
+        }
+
+        public void calculateInvSqrtC()
+        {
+            double[][] invSTD = new double[nDim][nDim];
+            for (int i = 0; i < nDim; i++)
+                invSTD[i][i] = Math.max(0., 1./Math.sqrt(D.get(i,i)));
+            invSqrtC = new Matrix(invSTD, nDim, nDim);
+            invSqrtC = V.times(invSqrtC.times(V.transpose()));
+        }
+
+        public void updateCovariance()
+        {
+            for (int i = 0; i < nDim; i++)
+                for (int j = 0; j < i; j++)
+                        C.set(i,j,C.get(j,i));
+            EigenvalueDecomposition eig = new EigenvalueDecomposition(C);
+            V = eig.getV();
+            D = eig.getD();
+            double[][] invSTD = new double[nDim][nDim];
+            for (int i = 0; i < nDim; i++)
+                invSTD[i][i] = 1./Math.sqrt(Math.max(0,D.get(i,i)));
+            invSqrtC = new Matrix(invSTD, nDim, nDim);
+            invSqrtC = V.times(invSqrtC.times(V.transpose()));
         }
 
         public void adapt()
@@ -441,143 +471,117 @@ public class player28 implements ContestSubmission
             calculateInvSqrtC();
         }
 
-        public void calculateInvSqrtC()
-        {
-            double[][] invSTD = new double[nDim][nDim];
-            for (int i = 0; i < nDim; i++)
-                invSTD[i][i] = Math.max(0., 1./Math.sqrt(D.get(i,i)));
-            invSqrtC = new Matrix(invSTD, nDim, nDim);
-            invSqrtC = V.times(invSqrtC.times(V.transpose()));
-        }
-
-        public void updateCovariance()
-        {
-            for (int i = 0; i < nDim; i++)
-                for (int j = 0; j < i; j++)
-                        C.set(i,j,C.get(j,i));
-            EigenvalueDecomposition eig = new EigenvalueDecomposition(C);
-            V = eig.getV();
-            D = eig.getD();
-            double[][] invSTD = new double[nDim][nDim];
-            for (int i = 0; i < nDim; i++)
-                invSTD[i][i] = 1./Math.sqrt(Math.max(0,D.get(i,i)));
-            invSqrtC = new Matrix(invSTD, nDim, nDim);
-            invSqrtC = V.times(invSqrtC.times(V.transpose()));
-        }
-
         public void split()
         {
-            if(generation < 30)
+            if(generation < 10)
                 return;
 
             // Finding biggest and second biggest eigenvalue and index of eigenvector
-            double maxSigma = 0;
-            double max2Sigma = 0;
-            int maxSigmaI = 0;
-            int max2SigmaI = 0;
+            double SigmaMax = 0;
+            int SigmaMaxI = 0;
+            double Sigma2Max = 0;
+            int Sigma2MaxI = 0;
             for (int i = 0; i < nDim; i++)
-                if (D.get(i,i) > maxSigma) {
-                    maxSigma = D.get(i,i);
-                    maxSigmaI = i;
+                if (D.get(i,i) > SigmaMax) {
+                    SigmaMax = D.get(i,i);
+                    SigmaMaxI = i;
                 }
             for (int i = 0; i < nDim; i++)
-                if (i != maxSigmaI && D.get(i,i) > max2Sigma) {
-                    max2Sigma = D.get(i,i);
-                    max2SigmaI = i;
+                if (i != SigmaMaxI && D.get(i,i) > Sigma2Max) {
+                    Sigma2Max = D.get(i,i);
+                    Sigma2MaxI = i;
                 }
-            double[] maxEV = new double[nDim];
+            double[] Vmax = new double[nDim];
             for (int i = 0; i < nDim; i++)
-                maxEV[i] = V.get(maxSigmaI, i);
+                Vmax[i] = V.get(SigmaMaxI, i);
 
-            if(maxSigma / max2Sigma < 7)
+            // Spiltting condition
+            if(SigmaMax / Sigma2Max < 5.)
                 return;
 
-            System.out.println("SPLITTING THE PEOPLE!!!!");
-            Population spartacus = new Population(lambda, mu);
+            Population other = new Population(lambda, mu);
 
+            // Split population according to dot-product
             ListIterator<Individual> indiviualIter = individuals.listIterator();
             while(indiviualIter.hasNext()) {
                 Individual I = indiviualIter.next();
 
                 double strength = 0;
                 for (int i = 0; i < nDim; i++)
-                    strength += (I.position[i] - mean[i]) * V.get(maxSigmaI, i);
+                    strength += (I.position[i] - mean[i]) * V.get(SigmaMaxI, i);
 
                 if(strength > 0) {
-                    spartacus.individuals.add(I);
+                    other.individuals.add(I);
                     indiviualIter.remove();
                 }else if(strength == 0){
                     indiviualIter.remove();
                 }
             }
 
-            // Copy data from parent population to new population
-            spartacus.V = V.copy();
-            spartacus.D = D.copy();
-            spartacus.calculateInvSqrtC();
+            //Recalculate mean
+            int muOld = this.mu;
+            this.mu = this.individuals.size();
+            this.genWeights();
+            this.calculateMean();
+            other.mu = other.individuals.size();
+            other.genWeights();
+            other.calculateMean();
 
+            //Estimate STD in splitting direction
+            double newSigmaMaxThis = 0;
+            for (int i = 0; i < this.mu; i++)
+                for (int j = 0; j < nDim; j++)
+                    newSigmaMaxThis += Math.pow(Vmax[j] * (this.individuals.get(i).position[j] - this.mean[j]), 2.);
+            newSigmaMaxThis = Math.sqrt(newSigmaMaxThis / this.mu);
+            double newSigmaMaxOther = 0;
+            for (int i = 0; i < other.mu; i++)
+                for (int j = 0; j < nDim; j++)
+                    newSigmaMaxOther += Math.pow(Vmax[j] * (other.individuals.get(i).position[j] - other.mean[j]), 2.);
+            newSigmaMaxOther = Math.sqrt(newSigmaMaxOther / other.mu);
 
-            // Reset historic paths
-            spartacus.pc = new double[nDim];
-            spartacus.ps = new double[nDim];
-            pc = new double[nDim];
-            ps = new double[nDim];
+            //Assign C_1 and C_2
+            other.V = V.copy(); // V_1 = V_2 = V
+            other.D = D.copy();
+            this.D.set(SigmaMaxI, SigmaMaxI, newSigmaMaxThis);
+            this.C = this.V.times(this.D.times(this.V.transpose()));
+            this.calculateInvSqrtC();
+            other.D.set(SigmaMaxI, SigmaMaxI, newSigmaMaxOther);
+            other.C = other.V.times(other.D.times(other.V.transpose()));
+            other.calculateInvSqrtC();
             generation = 0;
 
-            // Reset learning step size
-            spartacus.sigma = 0.3 * maxPos;
-            sigma = 0.3 * maxPos;
-
-            // Recalculate the mean
-            calculateMean();
-            spartacus.calculateMean();
-
-            // Reset eigenvalues and eigenvectors
-            D.set(maxSigmaI, maxSigmaI, 1);
-            spartacus.D.set(maxSigmaI, maxSigmaI, 1);
-            for (int i = 0; i < nDim; i++) {
-                V.set(maxSigmaI, i, 0);
-                spartacus.V.set(maxSigmaI, i, 0);
-            }
-            V.set(maxSigmaI, maxSigmaI, 1);
-            spartacus.V.set(maxSigmaI, maxSigmaI, 1);
-            C = V.times(D.times(V.transpose()));
-            spartacus.C = spartacus.V.times(spartacus.D.times(spartacus.V.transpose()));
-
-            tribes.add(spartacus);
-
-            double minDistance = 10000.;
-            for (int i = 0; i < tribes.size(); i++) {
-                for (int j = 0; j < i; j++) {
-                    minDistance = Math.min(distance(tribes.get(i).mean, tribes.get(j).mean), minDistance);
-                }
-            }
-            System.out.println(minDistance);
-            System.out.println(maxSigmaI);
-            print(mean);
-            print(spartacus.mean);
-            print(maxEV);
+            this.mu = muOld;
+            other.mu = muOld;
+            this.genWeights();
+            other.genWeights();
+            tribes.add(other);
         }
 
-        public boolean nextGeneration(int lambda, int mu)
+        public void restart()
         {
-            reproduction();
-            selection();
-            if (evals < evaluations_limit_)
-                adapt();
-            eval(mean);
-            if (verbose)
-                report();
-            mature();
-            split();
-            if(restart && maxFitness > 7. && max(fitness()) < 0.1){
+            if(!restart && max(fitness()) > 0.1){
+                restart = true;
+                return;
+            }
+            if(restart && sigma > 5.){
+                lambda += (int)((double)lambda * 0.1);
+                mu = lambda/2;
                 reset();
                 initRandom();
                 restart = false;
-            }else if(!restart && max(fitness()) > 8.){
-                restart = true;
             }
-            return (D.max() > 0.) && (evals < evaluations_limit_) && (maxFitness < 10.0);
+        }
+
+        public void report()
+        {
+            System.out.format("%d,", id);
+            System.out.format("%d,", evals);
+
+            System.out.format("%.10f,", max(fitness()));
+            System.out.format("%.10f,", sigma);
+            System.out.format("%6.2e,", D.max());
+            System.out.format("%d", lambda);
+            System.out.println();
         }
     }
 

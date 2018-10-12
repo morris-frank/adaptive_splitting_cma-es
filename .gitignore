@@ -1,6 +1,5 @@
 .vscode/launch.json
 .venv/
-*ipynb*
 .idea/
 tmp/
 submission.jar
@@ -9,3 +8,4 @@ Makefile
 Vector.class
 report*
 .vscode/
+.ipynb*
