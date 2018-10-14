@@ -100,20 +100,22 @@ public class player28 implements ContestSubmission
         boolean notFinished = true;
         while(notFinished){
             for(Population tribe : tribes){
+                if (verbose)
+                    tribe.report();
+                int nTribes = tribes.size();
                 tribe.reproduction();
                 tribe.selection();
                 if (evals < evaluations_limit_ - 1)
                     tribe.adapt();
                 eval(tribe.mean);
-                if (verbose)
-                    tribe.report();
                 tribe.mature();
-                // tribe.split();
-                tribe.restart();
+                tribe.split();
+                //tribe.restart();
                 if(maxFitness == 10.0 || evals == evaluations_limit_){
                     notFinished = false;
                     break;
                 }
+                if(nTribes < tribes.size()) break;
             }
         }
     }
@@ -410,7 +412,7 @@ public class player28 implements ContestSubmission
         {
             double N = (double)nDim;
 
-            double[] old_mean = mean;
+            double[] old_mean = mean.clone();
             calculateMean();
 
             // Normalized mean difference
@@ -473,6 +475,8 @@ public class player28 implements ContestSubmission
 
         public void split()
         {
+            if (tribes.size() == 2)
+                return;
             if(generation < 10)
                 return;
 
@@ -496,10 +500,11 @@ public class player28 implements ContestSubmission
                 Vmax[i] = V.get(SigmaMaxI, i);
 
             // Spiltting condition
-            if(SigmaMax / Sigma2Max < 5.)
+            if(SigmaMax / Sigma2Max < 9.)
                 return;
 
             Population other = new Population(lambda, mu);
+            other.sigma = sigma;
 
             // Split population according to dot-product
             ListIterator<Individual> indiviualIter = individuals.listIterator();
@@ -521,31 +526,28 @@ public class player28 implements ContestSubmission
             //Recalculate mean
             int muOld = this.mu;
             this.mu = this.individuals.size();
+            double[] oldMeanThis = this.mean.clone();
             this.genWeights();
             this.calculateMean();
             other.mu = other.individuals.size();
+            double[] oldMeanOther = this.mean.clone();
             other.genWeights();
             other.calculateMean();
 
-            //Estimate STD in splitting direction
-            double newSigmaMaxThis = 0;
-            for (int i = 0; i < this.mu; i++)
-                for (int j = 0; j < nDim; j++)
-                    newSigmaMaxThis += Math.pow(Vmax[j] * (this.individuals.get(i).position[j] - this.mean[j]), 2.);
-            newSigmaMaxThis = Math.sqrt(newSigmaMaxThis / this.mu);
-            double newSigmaMaxOther = 0;
-            for (int i = 0; i < other.mu; i++)
-                for (int j = 0; j < nDim; j++)
-                    newSigmaMaxOther += Math.pow(Vmax[j] * (other.individuals.get(i).position[j] - other.mean[j]), 2.);
-            newSigmaMaxOther = Math.sqrt(newSigmaMaxOther / other.mu);
+            for (int i = 0; i < nDim; i++) {
+                this.ps[i] += this.mean[i] - oldMeanThis[i];
+                this.pc[i] += this.mean[i] - oldMeanThis[i];
+                other.ps[i] += other.mean[i] - oldMeanOther[i];
+                other.pc[i] += other.mean[i] - oldMeanOther[i];
+            }
 
             //Assign C_1 and C_2
             other.V = V.copy(); // V_1 = V_2 = V
             other.D = D.copy();
-            this.D.set(SigmaMaxI, SigmaMaxI, newSigmaMaxThis);
+            this.D.set(SigmaMaxI, SigmaMaxI, SigmaMax/2. + 0.1 * SigmaMax);
             this.C = this.V.times(this.D.times(this.V.transpose()));
             this.calculateInvSqrtC();
-            other.D.set(SigmaMaxI, SigmaMaxI, newSigmaMaxOther);
+            other.D.set(SigmaMaxI, SigmaMaxI, SigmaMax/2. + 0.1 * SigmaMax);
             other.C = other.V.times(other.D.times(other.V.transpose()));
             other.calculateInvSqrtC();
             generation = 0;
@@ -575,13 +577,30 @@ public class player28 implements ContestSubmission
 
         public void report()
         {
+            double SigmaMax = 0;
+            int SigmaMaxI = 0;
+            double Sigma2Max = 0;
+            int Sigma2MaxI = 0;
+            for (int i = 0; i < nDim; i++)
+                if (D.get(i,i) > SigmaMax) {
+                    SigmaMax = D.get(i,i);
+                    SigmaMaxI = i;
+                }
+            for (int i = 0; i < nDim; i++)
+                if (i != SigmaMaxI && D.get(i,i) > Sigma2Max) {
+                    Sigma2Max = D.get(i,i);
+                    Sigma2MaxI = i;
+                }
+            double[] Vmax = new double[nDim];
+            for (int i = 0; i < nDim; i++)
+                Vmax[i] = V.get(SigmaMaxI, i);
             System.out.format("%d,", id);
             System.out.format("%d,", evals);
 
             System.out.format("%.10f,", individuals.get(0).fitness());
             System.out.format("%.10f,", sigma);
-            System.out.format("%6.2e,", D.max());
-            System.out.format("%d", lambda);
+            // System.out.format("%d,", lambda);
+            System.out.format("%6.2e", distance(tribes.get(0).mean, tribes.get(tribes.size() - 1).mean));
             System.out.println();
         }
     }
