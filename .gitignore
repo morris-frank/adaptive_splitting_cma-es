@@ -1,6 +1,5 @@
 .vscode/launch.json
 .venv/
-*ipynb*
 .idea/
 tmp/
 submission.jar
@@ -8,3 +7,5 @@ player28*.class
 Makefile
 Vector.class
 report*
+.vscode/
+.ipynb*
