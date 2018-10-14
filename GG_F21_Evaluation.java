@@ -9,7 +9,7 @@ public class GG_F21_Evaluation
   private static final int EVALS_LIMIT_ = 1000000;
   // ID OF THE GALLAGHER FUNCTION IS 21
   private static final int bbobid_ = 21;
-  private static final double BASE_ = 7.73838444D;
+  private static final double BASE_ = 320D;
   private JNIfgeneric function_ = null;
   private double best_;
   private double target_ = 0.0D;
@@ -31,8 +31,9 @@ public class GG_F21_Evaluation
     // algName = "";
     // comments = "";
     JNIfgeneric.makeBBOBdirs("tmp", true);
-    function_.initBBOB(23, 1, 10, "tmp", localParams);
+    function_.initBBOB(21, 1, 10, "tmp", localParams);
     target_ = function_.getFtarget();
+    System.out.println(target_);
   }
 
   public Object evaluate(Object paramObject)
@@ -43,7 +44,7 @@ public class GG_F21_Evaluation
     }
     if (evaluations_ > 1000000) { return null;
     }
-    double d1 = (function_.evaluate(arrayOfDouble) - target_) / (7.73838444D - target_);
+    double d1 = (function_.evaluate(arrayOfDouble) - target_) / (320D - target_);
     double d2 = 10.0D * Math.exp(-5.0D * d1);
     if (d2 > 10.0D) d2 = 10.0D; else if (d2 < 0.0D) d2 = 0.0D;
     if (d2 > best_) best_ = d2;
