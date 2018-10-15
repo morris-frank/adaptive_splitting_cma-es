@@ -33,7 +33,6 @@ public class GG_F21_Evaluation
     JNIfgeneric.makeBBOBdirs("tmp", true);
     function_.initBBOB(21, 1, 10, "tmp", localParams);
     target_ = function_.getFtarget();
-    System.out.println(target_);
   }
 
   public Object evaluate(Object paramObject)
