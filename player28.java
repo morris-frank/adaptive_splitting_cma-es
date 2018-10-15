@@ -68,7 +68,6 @@ public class player28 implements ContestSubmission
             int maxeval = 100000;
             // lambda = 75;
             lambda = 20;
-
         // Katsuura
         }else if(isMultimodal && !hasStructure && !isSeparable){
             int maxeval = 1000000;
@@ -115,24 +114,20 @@ public class player28 implements ContestSubmission
                     notFinished = false;
                     break;
                 }
-                // if(nTribes < tribes.size()) break;
             }
             ArrayList<Integer> DyingTribes = new ArrayList<Integer>();
             for (int i = 0; i < tribes.size(); i++) {
                 for (int j = 0; j < tribes.size(); j++) {
-                    if(i==j) continue;
-                    if(DyingTribes.contains(i) || DyingTribes.contains(j)) continue;
-                    double meanDistance = distance(tribes.get(i).mean, tribes.get(j).mean);
-                    if(tribes.get(i).D.max() > meanDistance){
+                    if(i==j || DyingTribes.contains(i) || DyingTribes.contains(j)) continue;
+                    double dist_of_means = distance(tribes.get(i).mean, tribes.get(j).mean);
+                    // if(tribes.get(i).D.max() > dist_of_means)
+                    if(dist_of_means < 10e-8)
                         DyingTribes.add(j);
-                    }
                 }
             }
-            for (int i = tribes.size()-1; i>=0; i--) {
-                if(DyingTribes.contains(i)){
+            for (int i = tribes.size()-1; i>=0; i--)
+                if(DyingTribes.contains(i))
                     tribes.remove(i);
-                }
-            }
         }
     }
 
@@ -262,6 +257,7 @@ public class player28 implements ContestSubmission
         public double[] ps;
         public double sigma;
         public int id;
+        public int parent_id;
 
         public boolean restart;
 
@@ -491,21 +487,21 @@ public class player28 implements ContestSubmission
 
         public void split()
         {
-            if(tribes.size() > 4) return;
+            if(tribes.size() > 3) return;
             if(generation < 10) return;
-            double sigmaSTD = 0;
+
             double sigmaMean = 0;
             double sigmaMax = 0;
             int sigmaMaxI = 0;
             for (int i = 0; i < nDim; i++) {
                 sigmaMean += D.get(i,i);
-                sigmaMax = Math.max(sigmaMax, D.get(i,i));
                 if (D.get(i,i) > sigmaMax) {
                     sigmaMax = D.get(i,i);
                     sigmaMaxI = i;
                 }
             }
             sigmaMean /= (double)nDim;
+            double sigmaSTD = 0;
             for (int i = 0; i < nDim; i++)
                 sigmaSTD += Math.pow(D.get(i,i) - sigmaMean, 2.);
             sigmaSTD = Math.sqrt(sigmaSTD/(double)nDim);
@@ -520,7 +516,15 @@ public class player28 implements ContestSubmission
                 return;
 
             Population other = new Population(lambda, mu);
+            tribes.add(other);
+            other.parent_id = this.id;
             other.sigma = sigma;
+            other.V = V.copy(); // V_1 = V_2 = V
+            other.D = D.copy();
+            generation = 0;
+            int old_mu = this.mu;
+            // double newSigma = sigmaMax/2. + 0.1 * sigmaMax; //Half but overlapping
+            double newSigma = sigmaMean;
 
             // Split population according to dot-product
             ListIterator<Individual> indiviualIter = individuals.listIterator();
@@ -534,45 +538,41 @@ public class player28 implements ContestSubmission
                 if(strength > 0) {
                     other.individuals.add(I);
                     indiviualIter.remove();
-                }else if(strength == 0){
+                }else if(strength == 0){ //Item on splitting plane!
                     indiviualIter.remove();
                 }
             }
 
-            //Recalculate mean
-            int muOld = this.mu;
+
             this.mu = this.individuals.size();
             double[] oldMeanThis = this.mean.clone();
             this.genWeights();
             this.calculateMean();
+            this.D.set(sigmaMaxI, sigmaMaxI, newSigma);
+            this.C = this.V.times(this.D.times(this.V.transpose()));
+            this.calculateInvSqrtC();
+            this.mu = old_mu;
+            this.genWeights();
+            for (int i = 0; i < nDim; i++) {
+                this.ps[i] += this.mean[i] - oldMeanThis[i];
+                // this.pc[i] += this.mean[i] - oldMeanThis[i];
+                this.pc[i] = 0;
+            }
+
             other.mu = other.individuals.size();
             double[] oldMeanOther = this.mean.clone();
             other.genWeights();
             other.calculateMean();
-
-            for (int i = 0; i < nDim; i++) {
-                this.ps[i] += this.mean[i] - oldMeanThis[i];
-                this.pc[i] += this.mean[i] - oldMeanThis[i];
-                other.ps[i] += other.mean[i] - oldMeanOther[i];
-                other.pc[i] += other.mean[i] - oldMeanOther[i];
-            }
-
-            //Assign C_1 and C_2
-            other.V = V.copy(); // V_1 = V_2 = V
-            other.D = D.copy();
-            this.D.set(sigmaMaxI, sigmaMaxI, sigmaMax/2. + 0.1 * sigmaMax);
-            this.C = this.V.times(this.D.times(this.V.transpose()));
-            this.calculateInvSqrtC();
-            other.D.set(sigmaMaxI, sigmaMaxI, sigmaMax/2. + 0.1 * sigmaMax);
+            other.D.set(sigmaMaxI, sigmaMaxI, newSigma);
             other.C = other.V.times(other.D.times(other.V.transpose()));
             other.calculateInvSqrtC();
-            generation = 0;
-
-            this.mu = muOld;
-            other.mu = muOld;
-            this.genWeights();
+            other.mu = old_mu;
             other.genWeights();
-            tribes.add(other);
+            for (int i = 0; i < nDim; i++) {
+                other.ps[i] += other.mean[i] - oldMeanOther[i];
+                // other.pc[i] += other.mean[i] - oldMeanOther[i];
+                other.pc[i] = 0;
+            }
         }
 
         public void restart()
@@ -612,9 +612,11 @@ public class player28 implements ContestSubmission
             sigmaSTD = Math.sqrt(sigmaSTD/(double)nDim);
             System.out.format("%6.3e,", (sigmaMax - sigmaMean)/sigmaSTD);
 
-            for (int i = 0; i < nDim-1; i++)
+            System.out.format("%6.3e,", distance(mean, tribes.get(parent_id).mean));
+
+            for (int i = 0; i < nDim; i++)
                 System.out.format("%6.3e,", D.get(i,i));
-            System.out.format("%6.3e", D.get(nDim-1,nDim-1));
+            System.out.format("%6.3e", sigmaMean);
             System.out.println();
         }
     }
