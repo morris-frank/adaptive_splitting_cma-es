@@ -1,15 +1,17 @@
+#!/bin/python
+import seaborn as sns
 from scipy.stats import multivariate_normal
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import cm 
+from matplotlib import cm
+sns.set()
+sns.set_context('paper')
+sns.set_style('ticks')
+sns.set_palette('Set2')
 
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 # plt.rcParams['text.latex.preamble'] ='\\usepackage{libertine}\n\\usepackage[utf8]{inputenc}'
-
-import seaborn
-seaborn.set(style='whitegrid')
-seaborn.set_context('notebook')
 
 mean_1 = [2, 2]
 mean_2 = [4, 2]
@@ -56,8 +58,10 @@ plt.ylim(0,3)
 plt.axis('equal')
 plt.xlabel('x')
 plt.ylabel('y')
+sns.despine()
 
 # Change name for BEFORE SPLIT or AFTER SPLIT
-plt.savefig('before_split.svg', format='svg')
-# plt.savefig('after_split.svg', format='svg')
-plt.show()
+plt.savefig('before_split.pdf')
+plt.savefig('before_split.pgf')
+# plt.savefig('after_split.pdf')
+# plt.savefig('after_split.pgf')
