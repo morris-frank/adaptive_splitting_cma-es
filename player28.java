@@ -29,20 +29,25 @@ public class player28 implements ContestSubmission
     int mu;
     boolean verbose;
 
+    player28_alt altRun;
+
 	public player28()
 	{
         rnd_ = new Random();
         tribes = new ArrayList<Population>();
+        altRun = new player28_alt();
 	}
 
 	public void setSeed(long seed)
 	{
 		// Set seed of algortihms random process
-		rnd_.setSeed(seed);
+        rnd_.setSeed(seed);
+        altRun.setSeed(seed);
 	}
 
 	public void setEvaluation(ContestEvaluation evaluation)
 	{
+        altRun.setEvaluation(evaluation);
 		// Set evaluation problem used in the run
 		evaluation_ = evaluation;
 
@@ -90,6 +95,9 @@ public class player28 implements ContestSubmission
 
 	public void run()
 	{
+        if(lambda == 31){
+            altRun.run();
+        }
         evals = 0;
 
         Population population = new Population(lambda, mu);
