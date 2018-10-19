@@ -9,4 +9,4 @@ Vector.class
 altMatrix.class
 report*
 .vscode/
-.ipynb*
+*.ipynb*
