@@ -97,10 +97,10 @@ public class player28 implements ContestSubmission
 
         boolean notFinished = true;
         while(notFinished){
-            for(int i = 0; i < tribes.size(); i++){
+            int tribes_size = tribes.size();
+            for(int i = 0; i < tribes_size; i++){
                 if (verbose)
                     tribes.get(i).report();
-                int nTribes = tribes.size();
                 tribes.get(i).reproduction();
                 tribes.get(i).selection();
                 if (evals < evaluations_limit_ - 1)
@@ -116,16 +116,16 @@ public class player28 implements ContestSubmission
                 }
             }
             ArrayList<Integer> DyingTribes = new ArrayList<Integer>();
-            for (int i = 0; i < tribes.size(); i++) {
-                for (int j = 0; j < tribes.size(); j++) {
+            for (int i = 0; i < tribes_size; i++) {
+                for (int j = 0; j < tribes_size; j++) {
                     if(i==j || DyingTribes.contains(i) || DyingTribes.contains(j) || tribes.get(j).generation < 10) continue;
                     double dist_of_means = distance(tribes.get(i).mean, tribes.get(j).mean);
                     // if(tribes.get(i).D.max() > dist_of_means)
-                    if(dist_of_means < 10e-8)
+                    if(dist_of_means < 10e-4)
                         DyingTribes.add(j);
                 }
             }
-            for (int i = tribes.size()-1; i>=0; i--)
+            for (int i = tribes_size-1; i>=0; i--)
                 if(DyingTribes.contains(i))
                     tribes.remove(i);
         }
@@ -255,7 +255,7 @@ public class player28 implements ContestSubmission
         public void init()
         {
             generation = 0;
-            sigma = 0.3 * maxPos;
+            sigma = 2 * 0.3 * maxPos;
             C = Matrix.identity(nDim, nDim);
             V = Matrix.identity(nDim, nDim);
             D = Matrix.identity(nDim, nDim);
@@ -276,8 +276,8 @@ public class player28 implements ContestSubmission
 
             double N = (double)nDim;
             cc = (4. + mueff/N) / (N + 4. + 2.*mueff/N);
-            // cs = (mueff+2.) / (N+mueff+5.);
-            cs = 0.6;
+            cs = (mueff+2.) / (N+mueff+5.);
+            // cs = 0.6;
             c1 = 2. / (Math.pow(N+1.3, 2)+mueff);
             cmu = Math.min(1.-c1, 2. * (mueff-2.+1./mueff)/(Math.pow(N+2., 2)+mueff));
             // damps = 1. + 2 * Math.max(0, Math.sqrt((mueff-1.)/(N+1.))-1) + cs;
@@ -384,6 +384,7 @@ public class player28 implements ContestSubmission
             double sigmafac = norm(ps) / (Math.sqrt(N) + 1./N) - 1; // tutorial: eq.32
             // double sigmafac = (norm(ps)/chiN - 1.); // From paper
             sigma *= Math.exp(Math.min(1., cs/damps * sigmafac));
+            // sigma *= 1 + 0.1 * Math.exp(Math.log(0.5)/50. * (double)generation);
 
 
             // double hsig = (norm(ps) / Math.sqrt(1.-Math.pow(1.-cs, 2.*evals/lambda)) / chiN) < (1.4 + 2./(N+1.)) ? 1. : 0.;
@@ -427,12 +428,14 @@ public class player28 implements ContestSubmission
             EigenvalueDecomposition eig = new EigenvalueDecomposition(C);
             V = eig.getV();
             D = eig.getD();
+            for (int i = 0; i < nDim; i++)
+                D.set(i,i,Math.sqrt(D.get(i,i)));
         }
 
         public void split()
         {
-            if(tribes.size() > 3) return;
-            if(generation < 10) return;
+            // if(tribes.size() > 3) return;
+            // if(generation < 10) return;
 
             double sigmaMean = 0;
             double sigmaMax = 0;
@@ -456,15 +459,21 @@ public class player28 implements ContestSubmission
                 Vmax[i] = V.get(sigmaMaxI, i);
 
             // Spiltting condition
-            if ((sigmaMax - sigmaMean)/sigmaSTD < 2.5)
+            if ((sigmaMax - sigmaMean)/sigmaSTD < (-0.334448*sigma + 2.80334))
+            // if ((sigmaMax - sigmaMean)/sigmaSTD < (2.))
                 return;
+
 
             Population other = new Population(lambda, mu);
             tribes.add(other);
             other.parent_id = this.id;
             other.sigma = sigma;
+            other.pc = this.pc.clone();
+            other.ps = this.ps.clone();
+
             generation = 0;
             int old_mu = this.mu;
+            double[] old_mean = this.mean.clone();
             // double newSigma = sigmaMax/2. + 0.1 * sigmaMax; //Half but overlapping
             double newSigma = sigmaMean;
 
@@ -487,16 +496,15 @@ public class player28 implements ContestSubmission
 
             // Update mean and historic path in both populations
             Population[] p = {this, other};
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < 2; i++) {
                 p[i].mu = p[i].individuals.size();
-                double[] oldMean = p[i].mean.clone();
                 p[i].resetParameters();
                 p[i].calculateMean();
                 p[i].mu = old_mu;
                 p[i].resetParameters();
                 for (int j = 0; j < nDim; j++) {
-                    p[i].ps[j] += p[i].mean[j] - oldMean[j];
-                    p[i].pc[j] += p[i].mean[j] - oldMean[j];
+                    p[i].ps[j] += p[i].mean[j] - old_mean[j];
+                    p[i].pc[j] += p[i].mean[j] - old_mean[j];
                 }
             }
 
@@ -519,7 +527,7 @@ public class player28 implements ContestSubmission
 
         public void report()
         {
-            if (generation == 0) return;
+            // if (generation == 0) return;
 
             double sigmaSTD = 0;
             double sigmaMean = 0;
@@ -533,19 +541,26 @@ public class player28 implements ContestSubmission
                 sigmaSTD += Math.pow(D.get(i,i) - sigmaMean, 2.);
             sigmaSTD = Math.sqrt(sigmaSTD/(double)nDim);
             double N = (double)nDim;
+            double sigmafac = norm(ps) / (Math.sqrt(N) + 1./N) - 1; // tutorial: eq.32
 
             System.out.format("%d,", id);
             System.out.format("%d,", evals);
 
-            System.out.format("%.10f,", individuals.get(0).fitness());
-            System.out.format("%.10f,", sigma);
-            System.out.format("%6.3e,", (sigmaMax - sigmaMean)/sigmaSTD);
-            // System.out.format("%6.3e,", (norm(ps)));
-            System.out.format("%6.3e,", C.max());
-            System.out.format("%6.3e,", sigmaMean);
+            if (individuals.size() > 0){
+                System.out.format("%.10f,", individuals.get(0).fitness());
+                System.out.format("%6.3e,", sigma);
+                System.out.format("%6.3e,", (sigmaMax - sigmaMean)/sigmaSTD);
+            }else{
+                System.out.format("%.10f,", 0.);
+                System.out.format("%6.3e,", sigma);
+                System.out.format("%6.3e,", 0.);
+            }
+            System.out.format("%6.3e,", (-0.334448*sigma + 2.80334));
+            System.out.format("%6.3e,", sigma * sigmaMean);
+            System.out.format("%6.3e,", distance(mean, tribes.get(0).mean));
             for (int i = 0; i < nDim; i++){
-                // System.out.format("%6.3e,", D.get(i,i));
-                System.out.format("%6.3e,", ps[i]);
+                System.out.format("%6.3e,", D.get(i,i));
+                //System.out.format("%6.3e,", ps[i]);
             }
             System.out.format("%6.3e", sigmaMean);
             System.out.println();
