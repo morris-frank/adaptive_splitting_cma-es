@@ -1,0 +1,159 @@
+import package.population;
+
+public class Population
+{
+    public int size;
+    public List<Individual> individuals;
+    public Matrix covariance;
+    public Vector mean;
+    public int generation;
+    public double bump = 1.0D;
+    public double[] weights;
+    public double birthrate;
+
+    public Population(double birthrate)
+    {
+        this.birthrate = birthrate;
+        size = 0;
+        generation = 1;
+        mean = new Vector(nDim);
+        individuals = new ArrayList<Individual>();
+        genWeights();
+    }
+
+    private void genWeights()
+    {
+        weights = new double[size];
+        int sum = 0;
+        for (int i = 0; i < size; i++) {
+            weights[i] = size - i + 1;
+            sum += weights[i];
+        }
+        for (int i = 0; i < size; i++)
+            weights[i] /= sum;
+    }
+
+    public void addRandom(int n)
+    {
+        for(int i = 0; i < n; i++){
+            Individual individual = new Individual();
+            individual.position = rand(nDim, maxPos);
+            individual.fitness();
+            individuals.add(individual);
+        }
+        size += n;
+        genWeights();
+    }
+
+    public Matrix positions()
+    {
+        Matrix positions = new Matrix(size, nDim);
+        for(int i = 0; i < size; i++)
+            positions.data[i] = individuals.get(i).position;
+        return positions;
+    }
+
+    public Vector ages()
+    {
+        Vector ages = new Vector(size);
+        for(int i = 0; i < size; i++)
+            ages.data[i] = individuals.get(i).age;
+        return ages;
+    }
+
+    public Vector fitness()
+    {
+        Vector fitness = new Vector(size);
+        for(int i = 0; i < size; i++)
+            fitness.data[i] = individuals.get(i).fitness();
+        return fitness;
+    }
+
+    public void newYear()
+    {
+        generation++;
+        for(int i = 0; i < individuals.size(); i++)
+            individuals.get(i).age++;
+    }
+
+    public void report()
+    {
+        System.out.print(generation);
+        System.out.print(" | AVG-Age: ");
+        System.out.print(ages().mean());
+        System.out.print(" | MAX-Fit: ");
+        System.out.print(fitness().max());
+        System.out.print(" | LR: ");
+        System.out.print(bump);
+        System.out.println();
+    }
+
+    public double sigma()
+    {
+        // todo make step size not static
+        return 1 * bump;
+    }
+
+    public List<Individual> offspring(int n)
+    {
+        List<Individual> offspring = new ArrayList<Individual>();
+        Matrix sampled_positions = sample(mean, covariance, n);
+        for(int i = 0; i < n; i++){
+            Individual baby = new Individual();
+            baby.position = sampled_positions.data[i];
+            baby.fitness();
+            if(evals == evaluations_limit_) break;
+            offspring.add(baby);
+        }
+        return offspring;
+    }
+
+    public void selection(int mu)
+    {
+        // todo Make weights NOT static and resize the indiviual array
+
+        Collections.sort(individuals);
+        while (individuals.size() > mu)
+            individuals.remove(individuals.size() - 1);
+        size = mu;
+
+        Vector new_mean = new Vector(nDim);
+
+        //Learning rate
+        double c_m = 0.9;
+
+        for(int d = 0; d < nDim; d++) {
+            for(int i = 0; i < mu; i++)
+                new_mean.data[d] += weights[i] * (individuals.get(i).position[d] - mean.data[d]);
+            new_mean.data[d] *= c_m;
+            new_mean.data[d] += mean.data[d];
+        }
+
+        if(mean.minus(new_mean).mean() < 10E-8) bump *= 1.5;
+        else bump = 1;
+        mean = new_mean;
+    }
+
+    public void killElderly(int maxAge)
+    {
+        ListIterator<Individual> indiIt = individuals.listIterator();
+        while(indiIt.hasNext()) {
+            Individual individual = indiIt.next();
+            if(individual.age > maxAge) {
+                indiIt.remove();
+            }
+        }
+        // size = individuals.size();
+    }
+
+    public boolean nextGeneration()
+    {
+        newYear();
+        covariance = positions().covariance();
+        List<Individual> children = offspring((int)(size * birthrate));
+        individuals.addAll(children);
+        // killElderly(5);
+        selection(size);
+        return evals < evaluations_limit_;
+    }
+}
