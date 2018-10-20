@@ -17,10 +17,7 @@ for lambda in $bentcigar_interval; do
     cd $lambda
     for i in $(seq 1 30); do
     	random_seed=$RANDOM
-    	echo "$lambda"
-    	echo "$random_seed"
     	filename="${evaluation}_${lambda}_${i}_${random_seed}"
-    	echo "$filename"
         # Set verbose to true
         java -Dlambda="${lambda}" -Dverbose=false -jar testrun.jar -submission=player28 -evaluation=$evaluation -seed=$random_seed 2>>/dev/null 1>> $filename
     done
