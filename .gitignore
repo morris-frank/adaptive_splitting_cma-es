@@ -10,3 +10,6 @@ altMatrix.class
 report*
 .vscode/
 *.ipynb*
+logs*
+*pdf
+*pgf
