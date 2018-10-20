@@ -27,8 +27,9 @@
             },
             "presentation": {
                 "echo": false,
-                "panel": "new",
-            }
+                "panel": "new"
+            },
+            "problemMatcher": []
         }
     ]
 }

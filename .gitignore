@@ -6,6 +6,7 @@ submission.jar
 player28*.class
 Makefile
 Vector.class
+altMatrix.class
 report*
 .vscode/
-.ipynb*
+*.ipynb*
