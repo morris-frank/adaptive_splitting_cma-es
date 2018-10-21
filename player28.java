@@ -107,8 +107,8 @@ public class player28 implements ContestSubmission
                     tribes.get(i).adapt();
                 eval(tribes.get(i).mean);
                 tribes.get(i).generation++;
-                // tribes.get(i).split();
-                tribes.get(i).restart();
+                tribes.get(i).split();
+                // tribes.get(i).restart();
                 tribes.get(i).last_gen_maxfitness = max(tribes.get(i).fitness());
                 if(maxFitness == 10.0 || evals == evaluations_limit_){
                     notFinished = false;
@@ -399,7 +399,7 @@ public class player28 implements ContestSubmission
                 pc[i] = (1.-cc)*pc[i] + hsig * Math.sqrt(cc*(2.-cc)*mueff) * vdzmean[i];
 
             double c1a = c1 * (1. - (1.-hsig*hsig) * cc * (2.-cc));
-            C.timesEquals(1.-c1a-cmu * sum(weights)); // Regard old matrix
+            C.timesEquals(1.-c1a-cmu); // Regard old matrix
 
             double[][] pcOuterProductValues = new double[nDim][nDim];
             for (int i = 0; i < nDim; i++)
@@ -434,9 +434,6 @@ public class player28 implements ContestSubmission
 
         public void split()
         {
-            // if(tribes.size() > 3) return;
-            // if(generation < 10) return;
-
             double sigmaMean = 0;
             double sigmaMax = 0;
             int sigmaMaxI = 0;
@@ -460,7 +457,6 @@ public class player28 implements ContestSubmission
 
             // Spiltting condition
             if ((sigmaMax - sigmaMean)/sigmaSTD < (-0.334448*sigma + 2.80334))
-            // if ((sigmaMax - sigmaMean)/sigmaSTD < (2.))
                 return;
 
 
@@ -474,7 +470,6 @@ public class player28 implements ContestSubmission
             generation = 0;
             int old_mu = this.mu;
             double[] old_mean = this.mean.clone();
-            // double newSigma = sigmaMax/2. + 0.1 * sigmaMax; //Half but overlapping
             double newSigma = sigmaMean;
 
             // Split population according to dot-product
@@ -510,7 +505,7 @@ public class player28 implements ContestSubmission
 
             // Compute the the splitted covariance matrix
             D.set(sigmaMaxI, sigmaMaxI, sigmaMean);
-            C = V.times(D.times(V.transpose()));
+            C = V.times(D.times(D.times((V.transpose()))));
             other.C = this.C.copy();
             other.D = this.D.copy();
             other.V = this.V.copy();
@@ -527,8 +522,6 @@ public class player28 implements ContestSubmission
 
         public void report()
         {
-            // if (generation == 0) return;
-
             double sigmaSTD = 0;
             double sigmaMean = 0;
             double sigmaMax = 0;
@@ -555,12 +548,12 @@ public class player28 implements ContestSubmission
                 System.out.format("%6.3e,", sigma);
                 System.out.format("%6.3e,", 0.);
             }
-            System.out.format("%6.3e,", (-0.334448*sigma + 2.80334));
+            System.out.format("%6.3e,", sigmafac);
             System.out.format("%6.3e,", sigma * sigmaMean);
             System.out.format("%6.3e,", distance(mean, tribes.get(0).mean));
             for (int i = 0; i < nDim; i++){
                 System.out.format("%6.3e,", D.get(i,i));
-                //System.out.format("%6.3e,", ps[i]);
+                // System.out.format("%6.3e,", pc[i]);
             }
             System.out.format("%6.3e", sigmaMean);
             System.out.println();
