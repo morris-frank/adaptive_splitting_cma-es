@@ -1,5 +1,0 @@
-Manifest-Version: 1.0
-Class-Path: . contest.jar submission.jar
-Created-By: 1.7.0_40 (Oracle Corporation)
-Main-Class: ConsertTestBox
-
